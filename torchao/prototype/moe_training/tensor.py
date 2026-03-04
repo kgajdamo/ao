@@ -107,6 +107,21 @@ class TrainingWeightWrapperBaseTensor(TorchAOBaseTensor):
 
     @classmethod
     def __torch_dispatch__(cls, func, types, args, kwargs={}):
+        # Log all ops with shape info
+        import torch.distributed as dist
+        rank = dist.get_rank() if dist.is_initialized() else -1
+        
+        # Get shape info from first tensor arg
+        def get_shape_info(t):
+            if isinstance(t, cls):
+                return f"Wrapper({t._data.shape})"
+            elif isinstance(t, torch.Tensor):
+                return f"Tensor({t.shape})"
+            return str(type(t).__name__)
+        
+        arg_shapes = [get_shape_info(a) for a in args if isinstance(a, (torch.Tensor, cls))]
+        print(f"[DISPATCH rank={rank}] {func} args={arg_shapes}")
+        
         # unwrap args/kwargs and extract config
         config = None
 
@@ -134,8 +149,18 @@ class TrainingWeightWrapperBaseTensor(TorchAOBaseTensor):
         # perform op
         out = func(*args_unwrapped, **kwargs_unwrapped)
 
+        # Log scatter_ shard statistics
+        if func == torch.ops.c10d.scatter_.default:
+            import torch.distributed as dist
+            rank = dist.get_rank() if dist.is_initialized() else -1
+            # out is a tuple: ([tensor], work_object)
+            if isinstance(out, tuple) and len(out) > 0 and isinstance(out[0], list) and len(out[0]) > 0:
+                shard = out[0][0]
+                print(f"[SCATTER rank={rank}] shape={shard.shape}, min={shard.min().item():.6f}, max={shard.max().item():.6f}, mean={shard.mean().item():.6f}")
+
         # return regular tensors for ops that don't preserve subclass
         if func not in _ops_to_preserve_subclass:
+            print("not preserving subclass", str(func))
             return out
 
         # wrap outputs back into the same subclass for ops that do preserve subclass
@@ -240,10 +265,6 @@ class Float8TrainingWeightWrapperTensor(TrainingWeightWrapperBaseTensor):
             # Use torchao scaled grouped mm with dynamic quant for
             # "2d x 3d with offsets" case (used for routed experts).
             # Otherwise, fall back to regular grouped mm.
-            #
-            # TODO: support "3d x 3d without offsets" case, which is
-            # used for shared experts. This is basically the grouped_mm
-            # kernel handling a bmm.
             A, B = args[0], args[1]
 
             assert not isinstance(A, cls), f"A should not be a {cls.__name__}"
@@ -285,10 +306,6 @@ class MXFP8TrainingWeightWrapperTensor(TrainingWeightWrapperBaseTensor):
             # Use torchao scaled grouped mm with dynamic quant for
             # "2d x 3d with offsets" case (used for routed experts).
             # Otherwise, fall back to regular grouped mm.
-            #
-            # TODO: support "3d x 3d without offsets" case, which is
-            # used for shared experts. This is basically the grouped_mm
-            # kernel handling a bmm.
             A, B = args[0], args[1]
 
             assert not isinstance(A, cls), f"A should not be a {cls.__name__}"
@@ -319,6 +336,13 @@ class MXFP8TrainingWeightWrapperTensor(TrainingWeightWrapperBaseTensor):
             assert isinstance(config, MXFP8TrainingOpConfig), (
                 "expected MXFP8TrainingOpConfig"
             )
+            
+            # Log weight shard statistics
+            import torch.distributed as dist
+            rank = dist.get_rank() if dist.is_initialized() else -1
+            weight = B._data
+            print(f"[LINEAR rank={rank}] weight shape={weight.shape}, min={weight.min().item():.6f}, max={weight.max().item():.6f}, mean={weight.mean().item():.6f}")
+            
             return _to_mxfp8_then_scaled_mm(
                 A,
                 unwrap_weight(B),
