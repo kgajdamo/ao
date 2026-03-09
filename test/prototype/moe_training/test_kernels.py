@@ -9,7 +9,7 @@ import torch
 
 # We need to skip before doing any imports which would use triton, since
 # triton won't be available on CPU builds
-if not (torch.cuda.is_available() and torch.cuda.get_device_capability()[0] >= 9):
+if torch.cuda.is_available() and torch.cuda.get_device_capability()[0] < 9:
     pytest.skip("Unsupported PyTorch version", allow_module_level=True)
 
 from torchao.prototype.moe_training.kernels.float8_rowwise import (
@@ -38,18 +38,26 @@ from torchao.prototype.moe_training.utils import (
     torch_to_float8_per_group_rowwise,
 )
 from torchao.prototype.mx_formats.mx_tensor import ScaleCalculationMode, to_mx
-from torchao.testing.utils import skip_if_rocm
+from torchao.testing.utils import (
+    get_available_devices,
+    skip_if_missing_device,
+    skip_if_rocm,
+    skip_if_xpu,
+)
 from torchao.utils import (
     is_sm_at_least_100,
 )
 
 
 @skip_if_rocm("ROCm enablement in progress")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize("round_scales_to_power_of_2", [True, False])
-def test_row_major_with_jagged_rowwise_scales(round_scales_to_power_of_2: bool):
+@pytest.mark.parametrize("device", get_available_devices())
+def test_row_major_with_jagged_rowwise_scales(
+    round_scales_to_power_of_2: bool, device: str
+):
     # Tests case where rowwise scales are computed for multiple distinct subtensors,
     # with end boundary of each group is determine by their end column indexes (offsets).
-    device = "cuda"
     m, k, n_groups = 256, 256, 4
     x = torch.randn(k, m * n_groups, device=device)
     colwise_offs = torch.arange(m, m * n_groups + 1, m, device=device)
@@ -76,13 +84,15 @@ def test_row_major_with_jagged_rowwise_scales(round_scales_to_power_of_2: bool):
 
 
 @skip_if_rocm("ROCm enablement in progress")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize("round_scales_to_power_of_2", [True, False])
+@pytest.mark.parametrize("device", get_available_devices())
 def test_row_major_with_jagged_rowwise_scales_transpose_method(
     round_scales_to_power_of_2: bool,
+    device: str,
 ):
     # tests case where rowwise scales are computed for multiple distinct subtensors,
     # with end boundary of each group is determine by their end column indexes (offsets).
-    device = "cuda"
     m, k, n_groups = 256, 256, 4
     grad_out = torch.randn(m * n_groups, k, device=device)
     colwise_offs = torch.arange(m, m * n_groups + 1, m, device=device)
@@ -114,11 +124,14 @@ def test_row_major_with_jagged_rowwise_scales_transpose_method(
 
 
 @skip_if_rocm("ROCm enablement in progress")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize("round_scales_to_power_of_2", [True, False])
-def test_column_major_with_jagged_colwise_scales(round_scales_to_power_of_2: bool):
+@pytest.mark.parametrize("device", get_available_devices())
+def test_column_major_with_jagged_colwise_scales(
+    round_scales_to_power_of_2: bool, device: str
+):
     # tests case where colwise scales are computed for multiple distinct subtensors,
     # with end boundary of each group is determine by their end row indexes (offsets).
-    device = "cuda"
     m, k, n_groups = 256, 256, 4
     x = torch.randn(m * n_groups, k, device=device).t().contiguous().t()
     rowwise_offs = torch.arange(m, m * n_groups + 1, m, device=device)
@@ -142,9 +155,12 @@ def test_column_major_with_jagged_colwise_scales(round_scales_to_power_of_2: boo
 
 
 @skip_if_rocm("ROCm not supported")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize("round_scales_to_power_of_2", [True, False])
-def test_fp8_rowwise_3d_transpose_rhs_atomic(round_scales_to_power_of_2: bool):
-    device = "cuda"
+@pytest.mark.parametrize("device", get_available_devices())
+def test_fp8_rowwise_3d_transpose_rhs_atomic(
+    round_scales_to_power_of_2: bool, device: str
+):
     experts, n, k = 8, 4 * 5120, 5120
 
     # Example expert weights as it comes into forward transposed
@@ -177,9 +193,12 @@ def test_fp8_rowwise_3d_transpose_rhs_atomic(round_scales_to_power_of_2: bool):
 
 
 @skip_if_rocm("ROCm not supported")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize("round_scales_to_power_of_2", [True, False])
-def test_fp8_rowwise_3d_transpose_rhs_reduction(round_scales_to_power_of_2: bool):
-    device = "cuda"
+@pytest.mark.parametrize("device", get_available_devices())
+def test_fp8_rowwise_3d_transpose_rhs_reduction(
+    round_scales_to_power_of_2: bool, device: str
+):
     experts, n, k = 8, 4 * 5120, 5120
 
     # Example expert weights as it comes into forward transposed
@@ -212,15 +231,14 @@ def test_fp8_rowwise_3d_transpose_rhs_reduction(round_scales_to_power_of_2: bool
 
 
 @skip_if_rocm("ROCm enablement in progress")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize(
     "m,k,n_groups", [(256, 256, 4), (16640, 5120, 16), (16640, 8192, 16)]
 )
+@pytest.mark.parametrize("device", get_available_devices())
 def test_triton_mx_block_rearrange_2d_M_groups(
-    m: int,
-    k: int,
-    n_groups: int,
+    m: int, k: int, n_groups: int, device: str
 ):
-    device = "cuda"
     block_size = 32
     input_data = torch.randn(m, k, device=device)
     e8m0_scales, _ = to_mx(
@@ -250,6 +268,7 @@ def test_triton_mx_block_rearrange_2d_M_groups(
     reason="MXFP8 requires CUDA capability 10.0 or greater",
 )
 @skip_if_rocm("ROCm enablement in progress")
+@skip_if_xpu("CUDA-specific test is not supported on XPU")
 @pytest.mark.parametrize(
     "m,k,n_groups,chunks_per_tb",
     [
@@ -301,13 +320,15 @@ def test_cuda_mx_block_rearrange_2d_M_groups(
 
 
 @skip_if_rocm("ROCm enablement in progress")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize("e,n,k", [(1, 8192, 5120), (2, 8192, 5120), (8, 5120, 8192)])
+@pytest.mark.parametrize("device", get_available_devices())
 def test_mxfp8_per_group_blocked_scales_3d(
     e: int,
     n: int,
     k: int,
+    device: str,
 ):
-    device = "cuda"
     block_size = 32
     weights = torch.randn(e, n, k // block_size, device=device)
     weight_scales, _ = to_mx(
@@ -325,15 +346,17 @@ def test_mxfp8_per_group_blocked_scales_3d(
 
 
 @skip_if_rocm("ROCm enablement in progress")
+@skip_if_missing_device(["cuda", "xpu"])
 @pytest.mark.parametrize("m", [256, 512, 1024, 5120])
 @pytest.mark.parametrize("total_k", [512, 1024, 2048, 4096, 8192, 16384])
 @pytest.mark.parametrize("n_groups", [1, 4, 8, 16])
+@pytest.mark.parametrize("device", get_available_devices())
 def test_triton_mx_block_rearrange_2d_K_groups(
     m: int,
     total_k: int,
     n_groups: int,
+    device: str,
 ):
-    device = "cuda"
     block_size = 32
     input_data = torch.randn(m, total_k, device=device)
 
@@ -365,6 +388,7 @@ def test_triton_mx_block_rearrange_2d_K_groups(
     not is_sm_at_least_100(),
     reason="MXFP8 requires CUDA capability 10.0 or greater",
 )
+@skip_if_xpu("CUDA-specific test is not supported on XPU")
 @pytest.mark.parametrize("E", (1, 2, 4, 8))
 @pytest.mark.parametrize("N", (32, 1536, 5120, 7168, 8192))
 @pytest.mark.parametrize("K", (32, 1536, 5120, 7168, 8192))

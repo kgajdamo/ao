@@ -1,15 +1,15 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD 3-Clause license found in the
+# LICENSE file in the root directory of this source tree.
+
 import copy
 
 import pytest
 import torch
 from torch import nn
 from torch.nn import functional as F
-
-# this feature requires CUDA and SM89+
-if not torch.cuda.is_available() or torch.cuda.get_device_capability() < (8, 9):
-    pytest.skip(
-        "CUDA not available or compute capability < 8.9", allow_module_level=True
-    )
 
 from torchao.float8.float8_utils import compute_error
 from torchao.prototype.moe_training.config import (
@@ -21,6 +21,11 @@ from torchao.prototype.moe_training.config import (
 from torchao.quantization.quant_api import quantize_
 from torchao.quantization.quantize_.common import KernelPreference
 from torchao.utils import is_MI300, is_MI350, is_ROCM
+from torchao.testing.utils import (
+    get_available_devices,
+    skip_if_device_compute_capability_less_than,
+    skip_if_missing_device,
+)
 
 # Reference MoE implementation (copied from torchtitan to avoid external dependency)
 from .reference_moe import MoE, MoEArgs, set_token_group_alignment_size_m
@@ -70,11 +75,18 @@ torch._dynamo.config.cache_size_limit = 1000
         },
     ],
 )
+@pytest.mark.parametrize(
+    "device",
+    get_available_devices(),
+)
+@skip_if_device_compute_capability_less_than("cuda", (8, 9))
+@skip_if_missing_device(["cuda", "xpu"])
 def test_moe_training(
     target_fqns: list[str],
     compile: bool,
     kernel_preference: KernelPreference,
     recipe_config: dict,
+    device: str,
 ):
     (
         recipe,
@@ -89,36 +101,36 @@ def test_moe_training(
         recipe_config["min_input_grad_sqnr"],
         recipe_config["min_param_grad_sqnr"],
     )
-    assert torch.cuda.is_available()
 
-    # Emulated mode with compile is not supported
-    if recipe == MXFP8TrainingRecipe.MXFP8_EMULATED_RCEIL and compile:
-        pytest.skip(
-            "Skipping compile=True with kernel_preference=EMULATED, not currently supported"
-        )
+    if device == "cuda":
+        # Emulated mode with compile is not supported
+        if recipe == MXFP8TrainingRecipe.MXFP8_EMULATED_RCEIL and compile:
+            pytest.skip(
+                "Skipping compile=True with kernel_preference=EMULATED, not currently supported"
+            )
 
-    # FP8_ROWWISE hardware path requires SM90 (CUDA) or MI300/MI350 (ROCm)
-    if recipe == Float8TrainingRecipe.FP8_ROWWISE:
-        if is_ROCM():
-            if not (is_MI300() or is_MI350()):
-                pytest.skip("FP8 rowwise test requires MI300 or MI350 on ROCm")
-        else:
-            if torch.cuda.get_device_capability() != (9, 0):
-                pytest.skip(
-                    f"Skipping FP8 rowwise tests, only supported on compute capability 9.0 and found {torch.cuda.get_device_capability()}"
-                )
+        # FP8_ROWWISE hardware path requires SM90 (CUDA) or MI300/MI350 (ROCm)
+        if recipe == Float8TrainingRecipe.FP8_ROWWISE:
+            if is_ROCM():
+                if not (is_MI300() or is_MI350()):
+                    pytest.skip("FP8 rowwise test requires MI300 or MI350 on ROCm")
+            else:
+                if torch.cuda.get_device_capability() != (9, 0):
+                    pytest.skip(
+                        f"Skipping FP8 rowwise tests, only supported on compute capability 9.0 and found {torch.cuda.get_device_capability()}"
+                    )
 
-    # MXFP8 hardware path requires SM100
-    if recipe in (
-        MXFP8TrainingRecipe.MXFP8_RCEIL,
-        MXFP8TrainingRecipe.MXFP8_RCEIL_WGRAD_WITH_HP,
-    ) and torch.cuda.get_device_capability() != (
-        10,
-        0,
-    ):
-        pytest.skip(
-            f"Skipping MXFP8 hardware mode tests, only supported on compute capability 10.0 and found {torch.cuda.get_device_capability()}"
-        )
+        # MXFP8 hardware path requires SM100
+        if recipe in (
+            MXFP8TrainingRecipe.MXFP8_RCEIL,
+            MXFP8TrainingRecipe.MXFP8_RCEIL_WGRAD_WITH_HP,
+        ) and torch.cuda.get_device_capability() != (
+            10,
+            0,
+        ):
+            pytest.skip(
+                f"Skipping MXFP8 hardware mode tests, only supported on compute capability 10.0 and found {torch.cuda.get_device_capability()}"
+            )
 
     # Set token group alignment size. This is required so that
     # each logically distinct gemm in the grouped gemm `grad_weight = grad_output_t @ input`
@@ -130,11 +142,11 @@ def test_moe_training(
         num_shared_experts=1,
     )
     init_std = 0.02
-    device = torch.device("cuda")
+    device = torch.device(device)
 
     # reference bf16 MoE
-    dim, hidden_dim = 5120, 8192
-    ref_model = MoE(model_args, dim, hidden_dim).to(torch.bfloat16).cuda()
+    dim, hidden_dim = 2048, 4096
+    ref_model = MoE(model_args, dim, hidden_dim).to(torch.bfloat16).to(device)
     torch.manual_seed(42)
     ref_model.init_weights(init_std, device)
 
@@ -172,7 +184,7 @@ def test_moe_training(
         ref_model = torch.compile(ref_model, fullgraph=False)
 
     # inputs
-    batch, seq = 8, 2048
+    batch, seq = 4, 512
     ref_x = torch.randn(
         batch, seq, dim, dtype=torch.bfloat16, requires_grad=True, device=device
     )

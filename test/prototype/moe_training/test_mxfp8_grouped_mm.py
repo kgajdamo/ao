@@ -13,11 +13,9 @@ from torchao.utils import is_sm_version, torch_version_at_least
 
 # We need to skip before doing any imports which would use triton, since
 # triton won't be available on CPU builds and torch < 2.5
-if not (
-    torch_version_at_least("2.7.0")
-    and torch.cuda.is_available()
-    and torch.cuda.get_device_capability()[0] >= 9
-):
+if torch.cuda.is_available() and not torch.cuda.get_device_capability()[0] >= 9:
+    pytest.skip("Test requires CUDA build on SM90+", allow_module_level=True)
+if not torch_version_at_least("2.7.0"):
     pytest.skip("Unsupported PyTorch version", allow_module_level=True)
 
 pytest.importorskip("triton", reason="Triton required to run this test")
@@ -35,7 +33,7 @@ from torchao.prototype.moe_training.utils import (
 )
 from torchao.prototype.mx_formats.mx_tensor import to_mx
 from torchao.quantization.quantize_.common import KernelPreference
-from torchao.testing.utils import skip_if_rocm
+from torchao.testing.utils import get_available_devices, skip_if_rocm
 
 # Needed since changing args to function causes recompiles
 torch._dynamo.config.cache_size_limit = 1000
@@ -44,10 +42,11 @@ torch._dynamo.config.cache_size_limit = 1000
 @skip_if_rocm("ROCm not supported")
 @pytest.mark.parametrize("M,K,N", [(1024, 1024, 1024), (1024, 2048, 4096)])
 @pytest.mark.parametrize("num_experts", (1, 8, 16))
-def test_emulate_mxfp8_grouped_gemm_2d_3d(M, K, N, num_experts):
-    x = torch.randn(M, K, dtype=torch.bfloat16, device="cuda")
-    w = torch.randn(num_experts, N, K, dtype=torch.bfloat16, device="cuda")
-    offs = generate_jagged_offs(num_experts, M)
+@pytest.mark.parametrize("device", get_available_devices())
+def test_emulate_mxfp8_grouped_gemm_2d_3d(M, K, N, num_experts, device):
+    x = torch.randn(M, K, dtype=torch.bfloat16, device=device)
+    w = torch.randn(num_experts, N, K, dtype=torch.bfloat16, device=device)
+    offs = generate_jagged_offs(num_experts, M, device=device)
     x_ref, w_ref, offs_ref = x.clone(), w.clone(), offs.clone()
 
     # Quantize inputs to mxpf8 for emulated mxfp8 scaled grouped mm
@@ -77,13 +76,14 @@ def test_emulate_mxfp8_grouped_gemm_2d_3d(M, K, N, num_experts):
 @pytest.mark.parametrize("M", (1024, 4096))
 @pytest.mark.parametrize("N", (1024, 4096))
 @pytest.mark.parametrize("num_experts", (8, 16))
-def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts):
+@pytest.mark.parametrize("device", get_available_devices())
+def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts, device):
     # Simluate 2d-2d grouped gemm grad_weight = grad_output_t @ x
     block_size = 32
-    grad_out = torch.randn(M, N, dtype=torch.bfloat16, device="cuda")
+    grad_out = torch.randn(M, N, dtype=torch.bfloat16, device=device)
     grad_out_t = grad_out.t().contiguous()
-    x = torch.randn(M, N, dtype=torch.bfloat16, device="cuda")
-    offs = generate_jagged_offs(num_experts, M, multiple_of=block_size)
+    x = torch.randn(M, N, dtype=torch.bfloat16, device=device)
+    offs = generate_jagged_offs(num_experts, M, multiple_of=block_size, device=device)
     x_ref, grad_out_t_ref, offs_ref = x.clone(), grad_out_t.clone(), offs.clone()
 
     # bf16 reference grouped gemm
@@ -132,6 +132,7 @@ def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts):
 @pytest.mark.parametrize(
     "scale_mode", (ScaleCalculationMode.FLOOR, ScaleCalculationMode.RCEIL)
 )
+@pytest.mark.parametrize("device", get_available_devices())
 def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
     M,
     K,
@@ -141,24 +142,29 @@ def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
     use_compile,
     kernel_preference,
     scale_mode,
+    device,
 ):
     # MXFP8 hardware path requires SM100
-    if kernel_preference != KernelPreference.EMULATED and not is_sm_version(10, 0):
+    if (
+        torch.cuda.is_available()
+        and kernel_preference != KernelPreference.EMULATED
+        and not is_sm_version(10, 0)
+    ):
         pytest.skip(
             f"Skipping MXFP8 hardware mode tests, only supported on compute capability 10.0 and found {torch.cuda.get_device_capability()}"
         )
 
     block_size = 32
-    x = torch.randn(M, K, dtype=torch.bfloat16, device="cuda", requires_grad=True)
+    x = torch.randn(M, K, dtype=torch.bfloat16, device=device, requires_grad=True)
     w = torch.randn(
         num_experts,
         N,
         K,
         dtype=torch.bfloat16,
-        device="cuda",
+        device=device,
     )
     w_t = w.transpose(-2, -1).requires_grad_(True)
-    offs = generate_jagged_offs(num_experts, M, multiple_of=block_size)
+    offs = generate_jagged_offs(num_experts, M, multiple_of=block_size, device=device)
     x_ref, w_t_ref, offs_ref = (
         x.clone().detach().requires_grad_(True),
         w_t.clone().detach().requires_grad_(True),

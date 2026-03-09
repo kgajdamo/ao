@@ -1,12 +1,16 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+# All rights reserved.
+#
+# This source code is licensed under the BSD 3-Clause license found in the
+# LICENSE file in the root directory of this source tree.
+
 import pytest
 import torch
 
 from torchao.utils import is_cuda_version_at_least, is_sm_at_least_100
 
-if not (
-    torch.cuda.is_available()
-    and is_sm_at_least_100()
-    and is_cuda_version_at_least(12, 8)
+if torch.cuda.is_available() and not (
+    is_sm_at_least_100() and is_cuda_version_at_least(12, 8)
 ):
     pytest.skip("Test requires CUDA 12.8+ with SM >= 100", allow_module_level=True)
 
@@ -14,10 +18,12 @@ from torchao.prototype.moe_training.ep import permute_mxfp8_fwd_hp_bwd
 from torchao.prototype.moe_training.ep.permute import _permute_bf16
 from torchao.prototype.mx_formats.mx_tensor import MXTensor
 from torchao.quantization.utils import compute_error
+from torchao.testing.utils import get_available_devices, skip_if_missing_device
 
 
-def test_mxfp8_permute_forward():
-    device = "cuda"
+@pytest.mark.parametrize("device", get_available_devices())
+@skip_if_missing_device(["cuda", "xpu"])
+def test_mxfp8_permute_forward(device: str):
     tokens = 64
     dim = 128
     num_experts = 8

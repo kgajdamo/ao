@@ -71,6 +71,21 @@ def skip_if_compute_capability_less_than(min_capability):
     return decorator
 
 
+def skip_if_device_compute_capability_less_than(min_capability, device="cuda"):
+    skip_if_capability = skip_if_compute_capability_less_than(min_capability)
+
+    def decorator(test_func):
+        @functools.wraps(test_func)
+        def wrapper(*args, **kwargs):
+            if is_any_device_available(device):
+                return skip_if_capability(test_func)(*args, **kwargs)
+            return test_func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def skip_if_rocm(message=None):
     """Decorator to skip tests on ROCm platform with custom message.
 
@@ -177,6 +192,37 @@ def skip_if_no_cuda():
     return decorator
 
 
+def skip_if_missing_device(devices: list[str] = ["cuda"]):
+    """Decorator to skip tests if any of the specified devices are not available.
+
+    Args:
+        devices (list[str], optional): List of device names to check for availability.
+    """
+    try:
+        import pytest
+
+        has_pytest = True
+    except ImportError:
+        has_pytest = False
+        import unittest
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            is_any_device = any(device in get_available_devices() for device in devices)
+            if not is_any_device:
+                skip_message = "No specified devices available"
+                if has_pytest:
+                    pytest.skip(skip_message)
+                else:
+                    unittest.skip(skip_message)
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return decorator
+
+
 def skip_if_no_gemlite():
     import unittest
 
@@ -192,6 +238,23 @@ def skip_if_no_gemlite():
         return wrapper
 
     return decorator
+
+
+def get_available_devices():
+    devices = []
+    if torch.cuda.is_available():
+        devices.append("cuda")
+    elif torch.xpu.is_available():
+        devices.append("xpu")
+    if torch.mps.is_available():
+        devices.append("mps")
+    return devices
+
+
+def is_any_device_available(devices: list[str]) -> bool:
+    """Check if any of the specified devices is currently available."""
+    available = get_available_devices()
+    return any(device in available for device in devices)
 
 
 # copied from https://github.com/pytorch/pytorch/blob/941d094dd1b507dacf06ddc6ed3485a9537e09b7/test/inductor/test_torchinductor.py#L11389
