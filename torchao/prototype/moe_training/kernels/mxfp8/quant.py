@@ -20,6 +20,7 @@ from torchao.prototype.mx_formats.utils import to_blocked
 from torchao.utils import (
     ceil_div,
     is_cuda_version_at_least,
+    is_XPU,
     torch_version_at_least,
 )
 
@@ -875,6 +876,8 @@ def _has_cuda_dispatch_kernel(opname: str) -> bool:
         return False
 
 
+_xpu_available = is_XPU()
+
 _mxfp8_cuda_kernels_available = (
     _is_sm_10x()
     and is_cuda_version_at_least(12, 8)
@@ -1035,7 +1038,7 @@ def _fake_mxfp8_quantize_2d_32x1_cutedsl_custom_op(
     return q_data, scales
 
 
-if _mxfp8_cutedsl_kernels_available:
+if _mxfp8_cutedsl_kernels_available or _xpu_available::
 
     @register_sharding(torch.ops.torchao.mxfp8_quantize_2d_1x32_cutedsl.default)
     def custom_sharding_for_cutedsl_mxfp8_2d_1x32_kernel(
@@ -1053,7 +1056,7 @@ if _mxfp8_cutedsl_kernels_available:
         return acceptable_shardings
 
 
-if _mxfp8_cuda_kernels_available:
+if _mxfp8_cuda_kernels_available or _xpu_available:
     # CUDA kernel for per group blocked layout transform with groups along M
     def mx_block_rearrange_2d_M_groups_cuda(
         scales_tensor: torch.Tensor,
@@ -1297,7 +1300,7 @@ def mxfp8_quantize_cuda_3d(
     Returns quantized data in column-major-per-expert layout and scales in
     blocked tcgen05 layout.
     """
-    if not _mxfp8_cutedsl_kernels_available:
+    if not _mxfp8_cutedsl_kernels_available and not _xpu_available:
         missing_packages = _missing_cutedsl_runtime_packages()
         if missing_packages:
             missing = ", ".join(missing_packages)

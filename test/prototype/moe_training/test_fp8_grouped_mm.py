@@ -12,15 +12,18 @@ from torchao.utils import (
     is_MI350,
     is_sm_at_least_90,
     is_sm_version,
+    is_XPU,
     torch_version_at_least,
 )
 
-if torch.cuda.is_available() and not (
-    torch_version_at_least("2.7.0")
-    and (is_sm_at_least_90() or is_MI300() or is_MI350())
-):
+_is_xpu_available = is_XPU()
+_is_compatible_cuda = torch.cuda.is_available() and (
+    is_sm_at_least_90() or is_MI300() or is_MI350()
+)
+
+if not ((_is_xpu_available or _is_compatible_cuda) and torch_version_at_least("2.7.0")):
     pytest.skip(
-        "Requires FP8-capable GPU (CUDA SM90+, MI300, or MI350)",
+        "Requires FP8-capable GPU (CUDA SM90+, MI300, MI350 or XPU)",
         allow_module_level=True,
     )
 
@@ -45,7 +48,7 @@ from torchao.utils import get_available_devices, is_MI300, is_MI350, is_ROCM
 # Needed since changing args to function causes recompiles
 torch._dynamo.config.cache_size_limit = 1000
 
-_DEVICES = [d for d in get_available_devices() if d != "cpu"]
+_DEVICES = get_available_devices()[1:]
 
 
 @pytest.fixture(scope="module", params=_DEVICES)

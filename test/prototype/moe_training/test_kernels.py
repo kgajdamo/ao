@@ -8,16 +8,21 @@ import pytest
 import torch
 
 # FP8 MoE kernels require FP8-capable hardware (SM 10.x on CUDA, MI300+ on ROCm)
-from torchao.utils import is_MI300, is_MI350
+from torchao.utils import is_MI300, is_MI350, is_XPU
 
 
 def _is_sm_10x() -> bool:
     return torch.cuda.is_available() and torch.cuda.get_device_capability()[0] == 10
 
 
-if torch.cuda.is_available and not (_is_sm_10x() or is_MI300() or is_MI350()):
+_is_xpu = is_XPU()
+_is_cuda_compatible = torch.cuda.is_available() and (
+    _is_sm_10x() or is_MI300() or is_MI350()
+)
+
+if not (_is_xpu or _is_cuda_compatible):
     pytest.skip(
-        "Requires FP8-capable GPU (CUDA SM 10.x, MI300, or MI350)",
+        "Requires FP8-capable GPU (CUDA SM 10.x, MI300, MI350, or XPU)",
         allow_module_level=True,
     )
 
@@ -66,7 +71,7 @@ from torchao.prototype.mx_formats.utils import from_blocked
 from torchao.testing.utils import skip_if_rocm, skip_if_xpu
 from torchao.utils import get_available_devices
 
-_DEVICES = [d for d in get_available_devices() if d != "cpu"]
+_DEVICES = get_available_devices()[1:]
 
 
 @pytest.fixture(scope="module", params=_DEVICES)

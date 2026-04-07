@@ -1,8 +1,15 @@
 import pytest
 import torch
 
-if not torch.cuda.is_available() or torch.cuda.get_device_capability() != (10, 0):
-    pytest.skip("Test requires CUDA build on SM100", allow_module_level=True)
+from torchao.utils import is_XPU
+
+_is_xpu = is_XPU()
+_is_compatible_cuda = (
+    torch.cuda.is_available() and torch.cuda.get_device_capability() >= (10, 0)
+)
+
+if not (_is_xpu or _is_compatible_cuda):
+    pytest.skip("Test requires XPU or CUDA build on SM100", allow_module_level=True)
 
 import torch.distributed as dist
 import torch.distributed._symmetric_memory as symm_mem
@@ -16,6 +23,7 @@ from torch.testing._internal.common_distributed import (
 )
 from torch.testing._internal.common_utils import (
     instantiate_parametrized_tests,
+    parametrize,
     run_tests,
 )
 
@@ -26,12 +34,19 @@ from torchao.prototype.moe_training.kernels.mxfp8.comms import (
     mxfp8_on_device_all_to_all_v,
     to_mxfp8_a2a_dequant,
 )
+from torchao.utils import get_available_devices
 
 from ..testing_utils import generate_split_sizes
+
+_DEVICES = get_available_devices()[1:]
 
 
 @instantiate_parametrized_tests
 class MXFP8OnDeviceAllToAllVTest(MultiProcessTestCase):
+    def __init__(self, methodName="runTest", device_type="cuda"):
+        super().__init__(methodName)
+        self._device_type = device_type
+
     def setUp(self) -> None:
         super().setUp()
         self._spawn_processes()
@@ -42,13 +57,34 @@ class MXFP8OnDeviceAllToAllVTest(MultiProcessTestCase):
 
     @property
     def device(self) -> torch.device:
-        return torch.device(f"cuda:{self.rank}")
+        return torch.device(self._device_type, self.rank)
+
+    @device.setter
+    def device(self, device_type: str):
+        self._device_type = device_type
+
+    def set_device(self):
+        if self._device_type == "cuda":
+            torch.cuda.set_device(self.device)
+        elif self._device_type == "xpu":
+            torch.xpu.set_device(self.device)
+        else:
+            raise ValueError(f"Unsupported device type: {self._device_type}")
+
+    @property
+    def backend(self):
+        if self._device_type == "cuda":
+            return "nccl"
+        elif self._device_type == "xpu":
+            return "xccl"
+        else:
+            raise ValueError(f"Unsupported device type: {self._device_type}")
 
     def _init_process(self):
-        torch.cuda.set_device(self.device)
+        self.set_device()
         store = dist.FileStore(self.file_name, self.world_size)
         dist.init_process_group(
-            backend="nccl",
+            backend=self.backend,
             world_size=self.world_size,
             rank=self.rank,
             store=store,
@@ -56,9 +92,16 @@ class MXFP8OnDeviceAllToAllVTest(MultiProcessTestCase):
         torch.manual_seed(42 + self.rank)
 
     def _init_device(self):
-        symm_mem.set_backend("NVSHMEM")
+        if self._device_type == "cuda":
+            symm_mem.set_backend("NVSHMEM")
+        elif self._device_type == "xpu":
+            symm_mem.set_backend("XPU_SHMEM")
+        else:
+            raise ValueError(f"Unsupported device type: {self._device_type}")
 
-    def test_a2a_fwd_bwd(self):
+    @parametrize("device_type", _DEVICES)
+    def test_a2a_fwd_bwd(self, device_type: str):
+        self.device = device_type
         self._init_process()
         try:
             torch.manual_seed(42 + self.rank)
@@ -147,6 +190,10 @@ class MXFP8OnDeviceAllToAllVTest(MultiProcessTestCase):
 
 @instantiate_parametrized_tests
 class ToMXFP8AllToAllVDequantTest(MultiProcessTestCase):
+    def __init__(self, methodName="runTest", device_type="cuda"):
+        super().__init__(methodName)
+        self._device_type = device_type
+
     def setUp(self) -> None:
         super().setUp()
         self._spawn_processes()
@@ -157,13 +204,34 @@ class ToMXFP8AllToAllVDequantTest(MultiProcessTestCase):
 
     @property
     def device(self) -> torch.device:
-        return torch.device(f"cuda:{self.rank}")
+        return torch.device(self._device_type, self.rank)
+
+    @device.setter
+    def device(self, device_type: str):
+        self._device_type = device_type
+
+    def set_device(self):
+        if self._device_type == "cuda":
+            torch.cuda.set_device(self.device)
+        elif self._device_type == "xpu":
+            torch.xpu.set_device(self.device)
+        else:
+            raise ValueError(f"Unsupported device type: {self._device_type}")
+
+    @property
+    def backend(self):
+        if self._device_type == "cuda":
+            return "nccl"
+        elif self._device_type == "xpu":
+            return "xccl"
+        else:
+            raise ValueError(f"Unsupported device type: {self._device_type}")
 
     def _init_process(self):
-        torch.cuda.set_device(self.device)
+        self.set_device()
         store = dist.FileStore(self.file_name, self.world_size)
         dist.init_process_group(
-            backend="nccl",
+            backend=self.backend,
             world_size=self.world_size,
             rank=self.rank,
             store=store,
@@ -171,9 +239,16 @@ class ToMXFP8AllToAllVDequantTest(MultiProcessTestCase):
         torch.manual_seed(42 + self.rank)
 
     def _init_device(self):
-        symm_mem.set_backend("NVSHMEM")
+        if self._device_type == "cuda":
+            symm_mem.set_backend("NVSHMEM")
+        elif self._device_type == "xpu":
+            symm_mem.set_backend("XPU_SHMEM")
+        else:
+            raise ValueError(f"Unsupported device type: {self._device_type}")
 
-    def test_a2a_fwd_bwd(self):
+    @parametrize("device_type", _DEVICES)
+    def test_a2a_fwd_bwd(self, device_type: str):
+        self.device = device_type
         self._init_process()
         try:
             torch.manual_seed(42 + self.rank)

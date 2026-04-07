@@ -49,6 +49,8 @@ _SM100_KERNELS_AVAILABLE = (
     and _triton_kernels_available
 )
 
+_XPU_AVAILABLE = torch.xpu.is_available() if hasattr(torch, "xpu") else False
+
 
 def _validate_grouped_mm_input_act(
     input_act: torch.Tensor,
@@ -172,11 +174,11 @@ class _MXFP8GroupedMM(torch.autograd.Function):
         ), "kernel_preference must be AUTO or EMULATED"
 
         # Validate SM100 kernels are available if not using emulated mode
-        if kernel_preference != KernelPreference.EMULATED:
-            assert _SM100_KERNELS_AVAILABLE, (
-                "SM100 kernels not available. Please use torchao CUDA 12.8+ build on SM100/100a device(s). "
-                "Otherwise, set kernel_preference=KernelPreference.EMULATED (emulated mode implements basic functionality without efficient kernels)."
-            )
+        emulated = kernel_preference == KernelPreference.EMULATED
+        assert emulated or _SM100_KERNELS_AVAILABLE or _XPU_AVAILABLE, (
+            "SM100 kernels not available. Please use use torchao CUDA 12.8+ build on SM100/100a device(s). "
+            "Otherwise, set kernel_preference=KernelPreference.EMULATED (emulated mode implements basic functionality without efficient kernels)."
+        )
 
         # Input validation
         assert input_act.ndim == 2, "input_act must be 2D"

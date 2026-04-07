@@ -14,15 +14,17 @@ from torchao.utils import (
     is_MI350,
     is_sm_at_least_90,
     is_sm_version,
+    is_XPU,
     torch_version_at_least,
 )
 
-if torch.cuda.is_available() and not (
-    torch_version_at_least("2.7.0")
-    and (is_sm_at_least_90() or is_MI300() or is_MI350())
-):
+_is_xpu = is_XPU()
+_is_compatible_cuda = torch.cuda.is_available() and (
+    is_sm_at_least_90() or is_MI300() or is_MI350()
+)
+if not ((_is_xpu or _is_compatible_cuda) and torch_version_at_least("2.7.0")):
     pytest.skip(
-        "Requires FP8-capable GPU (CUDA SM90+, MI300, or MI350)",
+        "Requires FP8-capable GPU (CUDA SM90+, MI300, MI350, or XPU) and PyTorch 2.7+",
         allow_module_level=True,
     )
 
@@ -44,7 +46,7 @@ from torchao.quantization.quantize_.common import KernelPreference
 from torchao.testing.utils import skip_if_rocm, skip_if_xpu
 from torchao.utils import get_available_devices
 
-_DEVICES = [d for d in get_available_devices() if d != "cpu"]
+_DEVICES = get_available_devices()[1:]
 
 
 @pytest.fixture(scope="module", params=_DEVICES)
@@ -89,8 +91,8 @@ def test_emulate_mxfp8_grouped_gemm_2d_3d(M, K, N, num_experts, device):
 
 
 @skip_if_rocm("ROCm not supported")
-@pytest.mark.parametrize("M", (1024, 4096))
-@pytest.mark.parametrize("N", (1024, 4096))
+@pytest.mark.parametrize("M", (1024, 4096))  # num tokens
+@pytest.mark.parametrize("N", (1024, 4096))  # output hidden dim
 @pytest.mark.parametrize("num_experts", (8, 16))
 def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts, device):
     # Simluate 2d-2d grouped gemm grad_weight = grad_output_t @ x
@@ -112,7 +114,7 @@ def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts, device):
     # mxpf8 grouped gemm
     x_scale, x_mx = to_mx(x, elem_dtype=torch.float8_e4m3fn, block_size=block_size)
     grad_out_t_mx, grad_out_t_scale = _to_mxfp8_per_group_rowwise(
-        grad_out_t,
+        grad_out_t,  # (N, M - num tokens)
         offs=offs,
         block_size=block_size,
     )
@@ -150,9 +152,9 @@ def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts, device):
     "scale_mode", (ScaleCalculationMode.FLOOR, ScaleCalculationMode.RCEIL)
 )
 def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
-    M,
-    K,
-    N,
+    M,  # num tokens (accross all experts)
+    K,  # hidden dim
+    N,  # output hidden dim (per expert)
     num_experts,
     wgrad_with_hp,
     use_compile,
@@ -241,19 +243,19 @@ def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
 
 @skip_if_rocm("ROCm not supported")
 @skip_if_xpu("XPU support not yet available")
-def test_mxfp8_grouped_gemm_from_qdata_and_scales_matches_dynamic():
+def test_mxfp8_grouped_gemm_from_qdata_and_scales_matches_dynamic(device):
     block_size = 32
     M, K, N, num_experts = 4096, 1024, 2048, 8
-    x = torch.randn(M, K, dtype=torch.bfloat16, device="cuda", requires_grad=True)
+    x = torch.randn(M, K, dtype=torch.bfloat16, device=device, requires_grad=True)
     w = torch.randn(
         num_experts,
         N,
         K,
         dtype=torch.bfloat16,
-        device="cuda",
+        device=device,
     )
     w_t = w.transpose(-2, -1).requires_grad_(True)
-    offs = generate_jagged_offs(num_experts, M, multiple_of=block_size)
+    offs = generate_jagged_offs(num_experts, M, multiple_of=block_size, device=device)
 
     x_ref = x.detach().clone().requires_grad_(True)
     w_t_ref = w_t.detach().clone().requires_grad_(True)
