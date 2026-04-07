@@ -693,9 +693,8 @@ def test_cuda_fused_unpad_token_groups(
     [(128, 5120), (1024, 8192), (4096, 5120)],
 )
 def test_triton_fp8_rowwise_2d_scale_and_cast(
-    m: int, k: int, round_scales_to_power_of_2: bool
+    m: int, k: int, round_scales_to_power_of_2: bool, device: str
 ):
-    device = "cuda"
     float8_dtype = torch.float8_e4m3fn
 
     torch.manual_seed(0)

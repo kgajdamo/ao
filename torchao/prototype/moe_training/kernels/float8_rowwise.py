@@ -580,6 +580,9 @@ if torch_version_at_least("2.7.0") and has_triton():
         # Use float64 for the division to maintain precision, then convert back.
         row_amax = tl.maximum(row_amax, EPS)
         scale = fp8_dtype_max / row_amax.to(tl.float64)
+        tl.device_print("row_idx", row_idx)
+        tl.device_print("row_amax", row_amax)
+        tl.device_print("scale", scale)        
         scale = scale.to(tl.float32)
 
         # Optionally round to power of 2 for hardware-friendly scaling.
