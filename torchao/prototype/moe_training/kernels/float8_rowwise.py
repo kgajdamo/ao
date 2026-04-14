@@ -525,6 +525,7 @@ if torch_version_at_least("2.7.0") and has_triton():
         round_scales_to_power_of_2: tl.constexpr,
         BLOCK_SIZE_K: tl.constexpr,
         EPS: tl.constexpr,
+        is_xpu: tl.constexpr,
     ):
         """
         Fused kernel that computes per-row absmax scale and casts a 2D tensor
@@ -579,11 +580,11 @@ if torch_version_at_least("2.7.0") and has_triton():
         # This maps the row's dynamic range into the FP8 representable range.
         # Use float64 for the division to maintain precision, then convert back.
         row_amax = tl.maximum(row_amax, EPS)
-        scale = fp8_dtype_max / row_amax.to(tl.float64)
-        tl.device_print("row_idx", row_idx)
-        tl.device_print("row_amax", row_amax)
-        tl.device_print("scale", scale)        
-        scale = scale.to(tl.float32)
+        if is_xpu:
+            scale = tl.math.div_rn(fp8_dtype_max, row_amax)
+        else:
+            scale = fp8_dtype_max / row_amax.to(tl.float64)
+            scale = scale.to(tl.float32)
 
         # Optionally round to power of 2 for hardware-friendly scaling.
         # Power-of-2 scales can be applied as exponent additions rather than
@@ -671,6 +672,7 @@ if torch_version_at_least("2.7.0") and has_triton():
             tl_output_dtype,
             round_scales_to_power_of_2=round_scales_to_power_of_2,
             EPS=EPS,
+            is_xpu=hp_tensor.device.type == "xpu"
         )
 
         return output_buffer, scales_buffer.unsqueeze(-1)
