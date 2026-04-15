@@ -41,27 +41,38 @@
 
 **Last updated:** 08.04.2026 | **PyTorch:** 2.12.0.dev20260406+xpu | **ao commit:** 7787da618 | **branch:** kgajdamo/xpu-moe-debug | **XPU devices:** 4
 
-||TEST NAME||PASS||FAIL / ERROR||SKIP||XFAIL||TOTAL||
-|ep/test_a2a_dispatch.py|1|0|0|0|1|
-|ep/test_compile.py|0|1|0|0|1|
-|ep/test_integration.py|0|1|0|0|1|
-|ep/test_kernels.py|9|0|0|0|9|
-|ep/test_permute.py|1|0|0|0|1|
-|mxfp8/test_mxfp8_a2a.py|0|2|0|0|2|
-|test_distributed.py|1|24|5|0|30|
-|test_fp8_grouped_mm.py|8|0|4|0|12|
-|test_kernels.py|118|0|275|0|393|
-|test_mxfp8_grouped_mm.py|16|0|129|0|145|
-|test_tensor.py|8|0|2|0|10|
-|test_training.py|6|24|18|0|48|
-|*TOTAL*|*168*|*52*|*433*|*0*|*653*|
+||TEST NAME||PASS||FAIL / ERROR||SKIP||SKIP (CUDA KNOWN ISSUE)||XFAIL||TOTAL||
+|ep/test_a2a_dispatch.py|1|0|0|0|0|1|
+|ep/test_compile.py|0|1|0|0|0|1|
+|ep/test_integration.py|0|1|0|0|0|1|
+|ep/test_kernels.py|9|0|0|0|0|9|
+|ep/test_permute.py|1|0|0|0|0|1|
+|mxfp8/test_mxfp8_a2a.py|0|2|0|0|0|2|
+|test_distributed.py|1|24|5|0|0|30|
+|test_fp8_grouped_mm.py|8|0|0|4|0|12|
+|test_kernels.py|116|373|3|0|0|492|
+|test_mxfp8_grouped_mm.py|16|129|0|0|0|145|
+|test_nvfp4_grouped_mm.py|14|0|0|0|0|14|
+|test_tensor.py|15|14|8|0|0|37|
+|test_training.py|6|24|18|0|0|48|
+|*TOTAL*|*187*|*568*|*34*|*4*|*0*|*793*|
+
+PASS - The test ran and succeeded. Everything behaved exactly as expected.
+FAIL / ERROR - Passes on cuda, fails on xpu. Reason of failure not yet found or is under investigation. Needs investigation and fixing. 
+SKIP - The test was intentionally not executed. Feature not implemented. Missing dependency or environment condition
+Platform-specific limitation. The test is not planned to be enabled.
+SKIP (CUDA KNOWN ISSUE) - The test was intentionally not executed. Known cuda bug (not hardware limitation).
+XFAIL - Passes on cuda, fails on xpu. The issue is known and reported.
+TOTAL - sum of all tests.
+
+
 
 ## Pass Rate (Markdown format)
 
 **Last updated:** 08.04.2026 | **PyTorch:** 2.12.0.dev20260406+xpu | **ao commit:** 7787da618 | **branch:** kgajdamo/xpu-moe-debug | **XPU devices:** 4
 
 | TEST NAME | PASS | FAIL / ERROR | SKIP | SKIP (CUDA KNOWN ISSUE) | XFAIL | TOTAL |
-|---|---|---|---|---|---|
+|---|---|---|---|---|---|---|
 | ep/test_a2a_dispatch.py | 1 | 0 | 0 | 0 | 0 | 1 |
 | ep/test_compile.py | 0 | 1 | 0 | 0 | 0 | 1 |
 | ep/test_integration.py | 0 | 1 | 0 | 0 | 0 | 1 |
@@ -70,8 +81,17 @@
 | mxfp8/test_mxfp8_a2a.py | 0 | 2 | 0 | 0 | 0 | 2 |
 | test_distributed.py | 1 | 24 | 5 | 0 | 0 | 30 |
 | test_fp8_grouped_mm.py | 8 | 0 | 0 | 4 | 0 | 12 |
-| test_kernels.py | 118 | 0 | 275 | 0 | 393 |
-| test_mxfp8_grouped_mm.py | 16 | 0 | 129 | 0 | 145 |
-| test_tensor.py | 8 | 0 | 2 | 0 | 10 |
-| test_training.py | 6 | 24 | 18 | 0 | 48 |
-| **TOTAL** | **168** | **52** | **433** | **0** | **653** |
+| test_kernels.py | 116 | 373 | 3 | 0 | 0 | 492 |
+| test_mxfp8_grouped_mm.py | 16 | 129 | 0 | 0 | 0 | 145 |
+| test_nvfp4_grouped_mm.py | 14 | 0 | 0 | 0 | 0 | 14 |
+| test_tensor.py | 15 | 14 | 8 | 0 | 0 | 37 |
+| test_training.py | 6 | 24 | 18 | 0 | 0 | 48 |
+| **TOTAL** | **187** | **568** | **34** | **4** | **0** | **793** |
+
+PASS - The test ran and succeeded. Everything behaved exactly as expected.
+FAIL / ERROR - Passes on cuda, fails on xpu. Reason of failure not yet found or is under investigation. Needs investigation and fixing. 
+SKIP - The test was intentionally not executed. Feature not implemented. Missing dependency or environment condition
+Platform-specific limitation. The test is not planned to be enabled.
+SKIP (CUDA KNOWN ISSUE) - The test was intentionally not executed. Known cuda bug (not hardware limitation).
+XFAIL - Passes on cuda, fails on xpu. The issue is known and reported.
+TOTAL - sum of all tests.
