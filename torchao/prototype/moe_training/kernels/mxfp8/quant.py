@@ -1038,7 +1038,7 @@ def _fake_mxfp8_quantize_2d_32x1_cutedsl_custom_op(
     return q_data, scales
 
 
-if _mxfp8_cutedsl_kernels_available or _xpu_available::
+if _mxfp8_cutedsl_kernels_available or _xpu_available:
 
     @register_sharding(torch.ops.torchao.mxfp8_quantize_2d_1x32_cutedsl.default)
     def custom_sharding_for_cutedsl_mxfp8_2d_1x32_kernel(

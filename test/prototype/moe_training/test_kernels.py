@@ -722,17 +722,16 @@ def test_triton_fp8_rowwise_2d_scale_and_cast(
 
 
 @pytest.mark.skipif(
-    not _is_sm_10x(),
+    torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
 @pytest.mark.skipif(
-    not _mxfp8_cutedsl_kernels_available,
+    torch.cuda.is_available() and not _mxfp8_cutedsl_kernels_available,
     reason="MXFP8 cutedsl kernels not available",
 )
 @skip_if_rocm("ROCm enablement in progress")
-def test_cutedsl_1x32_group_validation_error():
+def test_cutedsl_1x32_group_validation_error(device):
     """Test that 1x32 CuTeDSL kernel raises error for non-128-multiple group sizes."""
-    device = "cuda"
     M, K = 512, 1024
     x = torch.randn(M, K, dtype=torch.bfloat16, device=device)
     num_groups = 4
@@ -758,17 +757,16 @@ def test_cutedsl_1x32_group_validation_error():
 
 
 @pytest.mark.skipif(
-    not _is_sm_10x(),
+    torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
 @pytest.mark.skipif(
-    not _mxfp8_cutedsl_kernels_available,
+    torch.cuda.is_available() and not _mxfp8_cutedsl_kernels_available,
     reason="MXFP8 cutedsl kernels not available",
 )
 @skip_if_rocm("ROCm enablement in progress")
-def test_cutedsl_32x1_group_validation_error():
+def test_cutedsl_32x1_group_validation_error(device):
     """Test that 32x1 CuTeDSL kernel raises error for non-128-multiple group sizes."""
-    device = "cuda"
     M, K = 512, 1024
     x = torch.randn(M, K, dtype=torch.bfloat16, device=device)
     num_groups = 4
@@ -791,17 +789,16 @@ def test_cutedsl_32x1_group_validation_error():
 
 
 @pytest.mark.skipif(
-    not _is_sm_10x(),
+    torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
 @pytest.mark.skipif(
-    not _mxfp8_cutedsl_kernels_available,
+    torch.cuda.is_available() and not _mxfp8_cutedsl_kernels_available,
     reason="MXFP8 cutedsl kernels not available",
 )
 @skip_if_rocm("ROCm enablement in progress")
-def test_cutedsl_kernels_work_with_valid_128_multiple_groups():
+def test_cutedsl_kernels_work_with_valid_128_multiple_groups(device):
     """Test that both CuTeDSL kernels work correctly with valid 128-multiple group sizes."""
-    device = "cuda"
     M, K = 512, 1024
     x = torch.randn(M, K, dtype=torch.bfloat16, device=device)
 
