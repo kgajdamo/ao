@@ -249,7 +249,7 @@ def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts, device):
 
 
 @skip_if_rocm("ROCm not supported")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("M,K,N", [(32768, 5120, 8192), (16640, 7168, 2048)])
 @pytest.mark.parametrize("num_experts", (1, 8))
 @pytest.mark.parametrize("wgrad_with_hp", (True, False))
@@ -271,6 +271,7 @@ def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
     scale_mode,
     device,
 ):
+    assert not is_XPU(), "XPU support not yet available - hangs on this test"
     # MXFP8 hardware path requires SM100
     if (
         torch.cuda.is_available()
@@ -345,8 +346,9 @@ def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
 
 
 @skip_if_rocm("ROCm not supported")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 def test_mxfp8_grouped_gemm_from_qdata_and_scales_matches_dynamic(device):
+    assert not is_XPU(), "XPU support not yet available - hangs on this test"
     block_size = 32
     M, K, N, num_experts = 4096, 1024, 2048, 8
     x = torch.randn(M, K, dtype=torch.bfloat16, device=device, requires_grad=True)

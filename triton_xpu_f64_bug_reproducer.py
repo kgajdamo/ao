@@ -1,16 +1,6 @@
 """
 Reproducer: Triton XPU compiler incorrectly elides f32→f64→f32 round-trip.
 
-When a value is loaded as f32, upcast to f64 for a division, and then
-immediately cast back to f32, the XPU Triton backend optimizes away the
-f64 intermediate and performs the division in f32. This produces results
-that differ from a true f64 division.
-
-Inserting a side-effect (tl.device_print) between the f64 division and
-the f32 downcast forces the compiler to materialize the f64 value,
-yielding the correct result. This confirms it's a compiler optimization
-bug, not a runtime issue.
-
 Expected: both kernels produce the same result as PyTorch f64 reference.
 Actual (on XPU): the kernel WITHOUT device_print matches f32 precision,
                  the kernel WITH device_print matches f64 precision.
@@ -28,7 +18,8 @@ def _scale_no_print(input_ptr, output_ptr, NUMERATOR: tl.constexpr):
     """f32 → f64 division → f32, no side-effects. Compiler may elide f64."""
     idx = tl.program_id(0)
     val = tl.load(input_ptr + idx)  # f32
-    result = NUMERATOR / val.to(tl.float64)  # should be f64 division
+    # result = NUMERATOR / val.to(tl.float64)  # should be f64 division
+    result = tl.math.div_rn(NUMERATOR, val)
     tl.store(output_ptr + idx, result.to(tl.float32))
 
 
@@ -52,7 +43,7 @@ def _scale_f32_only(input_ptr, output_ptr, NUMERATOR: tl.constexpr):
 
 
 def main():
-    device = "xpu" if torch.xpu.is_available() else "cuda"
+    device = "xpu"
     print(f"Device: {device}")
 
     # Values chosen to produce visible f32 vs f64 precision differences.
