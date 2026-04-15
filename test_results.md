@@ -60,16 +60,16 @@
 
 **Last updated:** 08.04.2026 | **PyTorch:** 2.12.0.dev20260406+xpu | **ao commit:** 7787da618 | **branch:** kgajdamo/xpu-moe-debug | **XPU devices:** 4
 
-| TEST NAME | PASS | FAIL / ERROR | SKIP | XFAIL | TOTAL |
+| TEST NAME | PASS | FAIL / ERROR | SKIP | SKIP (CUDA KNOWN ISSUE) | XFAIL | TOTAL |
 |---|---|---|---|---|---|
-| ep/test_a2a_dispatch.py | 1 | 0 | 0 | 0 | 1 |
-| ep/test_compile.py | 0 | 1 | 0 | 0 | 1 |
-| ep/test_integration.py | 0 | 1 | 0 | 0 | 1 |
-| ep/test_kernels.py | 9 | 0 | 0 | 0 | 9 |
-| ep/test_permute.py | 1 | 0 | 0 | 0 | 1 |
-| mxfp8/test_mxfp8_a2a.py | 0 | 2 | 0 | 0 | 2 |
-| test_distributed.py | 1 | 24 | 5 | 0 | 30 |
-| test_fp8_grouped_mm.py | 8 | 0 | 4 | 0 | 12 |
+| ep/test_a2a_dispatch.py | 1 | 0 | 0 | 0 | 0 | 1 |
+| ep/test_compile.py | 0 | 1 | 0 | 0 | 0 | 1 |
+| ep/test_integration.py | 0 | 1 | 0 | 0 | 0 | 1 |
+| ep/test_kernels.py | 9 | 0 | 0 | 0 | 0 | 9 |
+| ep/test_permute.py | 1 | 0 | 0 | 0 | 0 | 1 |
+| mxfp8/test_mxfp8_a2a.py | 0 | 2 | 0 | 0 | 0 | 2 |
+| test_distributed.py | 1 | 24 | 5 | 0 | 0 | 30 |
+| test_fp8_grouped_mm.py | 8 | 0 | 0 | 4 | 0 | 12 |
 | test_kernels.py | 118 | 0 | 275 | 0 | 393 |
 | test_mxfp8_grouped_mm.py | 16 | 0 | 129 | 0 | 145 |
 | test_tensor.py | 8 | 0 | 2 | 0 | 10 |

@@ -279,11 +279,11 @@ def test_triton_mx_block_rearrange_2d_M_groups(
 
 
 @pytest.mark.skipif(
-    not _is_sm_10x(),
+    torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
 @skip_if_rocm("ROCm enablement in progress")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize(
     "m,k,n_groups,chunks_per_tb",
     [
@@ -305,8 +305,8 @@ def test_cuda_mx_block_rearrange_2d_M_groups(
     k: int,
     n_groups: int,
     chunks_per_tb: int,
+    device: str,
 ):
-    device = "cuda"
     block_size = 32
     input_data = torch.randn(m, k, device=device)
     e8m0_scales, _ = to_mx(
@@ -396,10 +396,10 @@ def test_triton_mx_block_rearrange_2d_K_groups(
 
 
 @pytest.mark.skipif(
-    not _is_sm_10x(),
+    torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("E", (1, 2, 4, 8))
 @pytest.mark.parametrize("N", (32, 1536, 5120, 7168, 8192))
 @pytest.mark.parametrize("K", (32, 1536, 5120, 7168, 8192))
@@ -407,8 +407,8 @@ def test_triton_mx_block_rearrange_2d_K_groups(
 @pytest.mark.parametrize(
     "scaling_mode", (ScaleCalculationMode.FLOOR, ScaleCalculationMode.RCEIL)
 )
-def test_cuda_mx_dim1_3d_numerics(E, N, K, input_dtype, scaling_mode):
-    if not _mxfp8_cutedsl_kernels_available:
+def test_cuda_mx_dim1_3d_numerics(E, N, K, input_dtype, scaling_mode, device):
+    if not (_is_xpu or _mxfp8_cutedsl_kernels_available):
         pytest.skip("mxfp8_quantize_3d is unavailable")
 
     scaling_mode_str = (
@@ -418,7 +418,7 @@ def test_cuda_mx_dim1_3d_numerics(E, N, K, input_dtype, scaling_mode):
 
     # Use disinct incrementing values from 0 to E*M*K-1 to make debugging easier.
     x = (
-        torch.arange(0, E * N * K, dtype=input_dtype, device="cuda")
+        torch.arange(0, E * N * K, dtype=input_dtype, device=device)
         .reshape(E, N, K)
         .contiguous()
     )
@@ -457,11 +457,11 @@ def test_cuda_mx_dim1_3d_numerics(E, N, K, input_dtype, scaling_mode):
 
 
 @pytest.mark.skipif(
-    not _is_sm_10x(),
+    torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
 @pytest.mark.skipif(
-    not _mxfp8_cutedsl_kernels_available,
+    torch.cuda.is_available() and not _mxfp8_cutedsl_kernels_available,
     reason="MXFP8 cutedsl kernels not available",
 )
 @pytest.mark.parametrize("M", (32, 160, 8192))
@@ -470,13 +470,13 @@ def test_cuda_mx_dim1_3d_numerics(E, N, K, input_dtype, scaling_mode):
 @pytest.mark.parametrize(
     "scaling_mode", (ScaleCalculationMode.FLOOR, ScaleCalculationMode.RCEIL)
 )
-def test_cuda_mx_dim0_2d_numerics(M, K, input_dtype, scaling_mode):
+def test_cuda_mx_dim0_2d_numerics(M, K, input_dtype, scaling_mode, device):
     scaling_mode_str = scaling_mode.value.lower()
     block_size = 32
 
     # Use distinct incrementing values from 0 to M*K-1 to make debugging easier.
     x = (
-        torch.arange(0, M * K, dtype=input_dtype, device="cuda")
+        torch.arange(0, M * K, dtype=input_dtype, device=device)
         .reshape(M, K)
         .contiguous()
     )
@@ -511,11 +511,11 @@ def test_cuda_mx_dim0_2d_numerics(M, K, input_dtype, scaling_mode):
 
 
 @pytest.mark.skipif(
-    not _is_sm_10x(),
+    torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
 @pytest.mark.skipif(
-    not _mxfp8_cutedsl_kernels_available,
+    torch.cuda.is_available() and not _mxfp8_cutedsl_kernels_available,
     reason="MXFP8 cutedsl kernels not available",
 )
 @pytest.mark.parametrize("M", (32, 128, 160, 1024))
@@ -526,7 +526,7 @@ def test_cuda_mx_dim0_2d_numerics(M, K, input_dtype, scaling_mode):
 )
 @pytest.mark.parametrize("blocked_scale_output", [False, True])
 def test_cuda_mx_dim1_2d_numerics_32x1(
-    M, K, input_dtype, scaling_mode, blocked_scale_output
+    M, K, input_dtype, scaling_mode, blocked_scale_output, device
 ):
     """Test 32x1 scaling kernel that quantizes along M dimension."""
     scaling_mode_str = scaling_mode.value.lower()
@@ -540,7 +540,7 @@ def test_cuda_mx_dim1_2d_numerics_32x1(
 
     # Use distinct incrementing values from 0 to M*K-1 to make debugging easier.
     x = (
-        torch.arange(0, M * K, dtype=input_dtype, device="cuda")
+        torch.arange(0, M * K, dtype=input_dtype, device=device)
         .reshape(M, K)
         .contiguous()
     )
@@ -583,7 +583,7 @@ def test_cuda_mx_dim1_2d_numerics_32x1(
 
 
 @pytest.mark.skipif(
-    not _mxfp8_cuda_kernels_available,
+    torch.cuda.is_available() and not _mxfp8_cuda_kernels_available,
     reason="CUDA kernel requires sm_100 and CUDA 12.8+",
 )
 @skip_if_rocm("ROCm enablement in progress")
@@ -593,10 +593,9 @@ def test_cuda_mx_dim1_2d_numerics_32x1(
 @pytest.mark.parametrize("alignment_size", [32])
 @pytest.mark.parametrize("dtype", [torch.bfloat16])
 def test_cuda_fused_pad_token_groups(
-    num_tokens: int, dim: int, num_groups: int, alignment_size: int, dtype: torch.dtype
+    num_tokens: int, dim: int, num_groups: int, alignment_size: int, dtype: torch.dtype, device: str
 ):
     """Test fused_pad_token_groups_cuda kernel for padding token groups to alignment."""
-    device = "cuda"
 
     # Create input activations
     inputs = torch.randn(num_tokens, dim, dtype=dtype, device=device)
@@ -630,7 +629,7 @@ def test_cuda_fused_pad_token_groups(
 
 
 @pytest.mark.skipif(
-    not _mxfp8_cuda_kernels_available,
+    torch.cuda.is_available() and not _mxfp8_cuda_kernels_available,
     reason="CUDA kernel requires sm_100 and CUDA 12.8+",
 )
 @skip_if_rocm("ROCm enablement in progress")
@@ -640,10 +639,9 @@ def test_cuda_fused_pad_token_groups(
 @pytest.mark.parametrize("alignment_size", [32])
 @pytest.mark.parametrize("dtype", [torch.bfloat16])
 def test_cuda_fused_unpad_token_groups(
-    num_tokens: int, dim: int, num_groups: int, alignment_size: int, dtype: torch.dtype
+    num_tokens: int, dim: int, num_groups: int, alignment_size: int, dtype: torch.dtype, device: str
 ):
     """Test fused_unpad_token_groups_cuda kernel for removing padding from token groups."""
-    device = "cuda"
 
     # Create input activations
     inputs = torch.randn(num_tokens, dim, dtype=dtype, device=device)

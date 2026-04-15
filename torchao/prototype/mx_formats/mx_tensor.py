@@ -789,7 +789,7 @@ def _addmm_mx_dispatch(
             a_scale_block = a.scale
         else:
             a_scale = a.scale.view(M, K // a.block_size)
-            a_scale_block = maybe_dtensor_to_blocked(a_scale)
+            a_scale_block = maybe_dtensor_to_blocked(a_scale) # incorrect a_scale_block shape
 
         if b.is_swizzled_scales:
             b_scale_block = b.scale.t()

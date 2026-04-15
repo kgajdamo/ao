@@ -95,7 +95,7 @@ class MXFP8OnDeviceAllToAllVTest(MultiProcessTestCase):
         if self._device_type == "cuda":
             symm_mem.set_backend("NVSHMEM")
         elif self._device_type == "xpu":
-            symm_mem.set_backend("XPU_SHMEM")
+            symm_mem.set_backend("XPUSHMEM")
         else:
             raise ValueError(f"Unsupported device type: {self._device_type}")
 
@@ -242,7 +242,7 @@ class ToMXFP8AllToAllVDequantTest(MultiProcessTestCase):
         if self._device_type == "cuda":
             symm_mem.set_backend("NVSHMEM")
         elif self._device_type == "xpu":
-            symm_mem.set_backend("XPU_SHMEM")
+            symm_mem.set_backend("XPUSHMEM")
         else:
             raise ValueError(f"Unsupported device type: {self._device_type}")
 
