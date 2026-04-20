@@ -1538,7 +1538,7 @@ def mxfp8_quantize_2d_32x1_cutedsl(
         - Scales tensor in blocked tcgen05 layout suitable for 4x128 scale factor tiles
           where only the scales dimensions are padded, not the data tensor
     """
-    if not _mxfp8_cutedsl_kernels_available:
+    if not (_mxfp8_cutedsl_kernels_available or _xpu_available):
         missing_packages = _missing_cutedsl_runtime_packages()
         if missing_packages:
             missing = ", ".join(missing_packages)

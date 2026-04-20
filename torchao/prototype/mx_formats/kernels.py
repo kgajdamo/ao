@@ -28,6 +28,7 @@ from torchao.utils import (
     is_XPU,
     torch_version_at_least,
 )
+from torch._inductor.runtime.triton_helpers import libdevice
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ MANTISSA_MASK_F6_E3M2 = 0x3  # 000011
 ZERO_BITS_F32 = 0x0
 ZERO_POINT_FIVE_BITS_F32 = 0x3F000000
 
+_is_xpu = is_XPU()
 
 def f32_to_f4_unpacked(x):
     """
@@ -228,6 +230,7 @@ if torch_version_at_least("2.7.0") and has_triton():
             e8m0_scales.size(1),
             out_dtype=out_dtype_tl,
             SCALE_BLOCK_SIZE=scale_block_size,
+            is_xpu=_is_xpu,
         )
         return out_buffer.reshape(orig_shape)
 
@@ -271,6 +274,7 @@ if torch_version_at_least("2.7.0") and has_triton():
         SCALE_BLOCK_SIZE: tl.constexpr,
         ROW_TILE_SIZE: tl.constexpr,
         COL_TILE_SIZE: tl.constexpr,
+        is_xpu: tl.constexpr,
     ):
         pid_row = tl.program_id(0)
         pid_col = tl.program_id(1)
@@ -302,7 +306,7 @@ if torch_version_at_least("2.7.0") and has_triton():
         e8m0_scale_block_r = e8m0_scale_block.reshape(
             ROW_TILE_SIZE * SCALE_BLOCKS_PER_COL_TILE, 1
         )
-        fp32_scale = _e8m0_to_fp32(e8m0_scale_block_r)
+        fp32_scale = _e8m0_to_fp32(e8m0_scale_block_r, is_xpu)
         data_hp = e4m3_data_block_r.to(tl.float32) * fp32_scale
 
         # Write to output buffer
@@ -311,11 +315,14 @@ if torch_version_at_least("2.7.0") and has_triton():
         tl.store(out_buffer + block_offs, out_buffer_block, mask=mask)
 
     @triton.jit
-    def _e8m0_to_fp32(scale_e8m0):
+    def _e8m0_to_fp32(scale_e8m0, is_xpu: tl.constexpr):
         e8m0_nan_val = 255
         e8m0_exponent_bias = 127
         s_offset = scale_e8m0.to(tl.int16) - e8m0_exponent_bias
-        s_fp = tl.exp2(s_offset.to(tl.float32))
+        if is_xpu:
+            s_fp = libdevice.exp2(s_offset.to(tl.float32))
+        else:
+            s_fp = tl.exp2(s_offset.to(tl.float32))
         s_fp = tl.where(scale_e8m0 != e8m0_nan_val, s_fp, float("nan"))
         return s_fp.to(tl.float32)
 
@@ -463,7 +470,6 @@ _is_nvidia_sm100 = (
     and is_cuda_version_at_least(12, 8)
 )
 _is_rocm_mi350 = is_ROCM() and is_MI350()
-_is_xpu = is_XPU()
 
 _triton_kernels_available = (
     torch_version_at_least("2.7.0")
