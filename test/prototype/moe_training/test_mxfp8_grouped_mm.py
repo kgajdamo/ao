@@ -271,7 +271,7 @@ def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
     scale_mode,
     device,
 ):
-    # assert not is_XPU(), "XPU support not yet available - hangs on this test"
+    assert not is_XPU(), "XPU support not yet available - hangs on this test"
     # MXFP8 hardware path requires SM100
     if (
         torch.cuda.is_available()

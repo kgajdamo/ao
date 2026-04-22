@@ -385,6 +385,8 @@ class GroupedExperts(nn.Module):
             w1 = self.w1
             w2 = self.w2
             w3 = self.w3
+        
+        # print(f'{torch.distributed.get_rank()=}, {w1=}')
 
         if self.use_grouped_mm:
             if (
@@ -393,7 +395,7 @@ class GroupedExperts(nn.Module):
             ):
                 run_experts_fn = indices_padding_wrapper(_run_experts_grouped_mm)
             else:
-                run_experts_fn = _run_experts_grouped_mm
+                run_experts_fn = _run_experts_grouped_mm # ref
             return run_experts_fn(w1, w2, w3, x, num_tokens_per_expert)
         else:
             return _run_experts_for_loop(w1, w2, w3, x, num_tokens_per_expert)
@@ -612,13 +614,21 @@ class MoE(nn.Module):
         with torch.no_grad():
             self.tokens_per_expert.add_(num_tokens_per_expert)
 
+        # print(f'{torch.distributed.get_rank()=}, {selected_experts_indices=}') # OK
+
         (
             top_scores_experts_sorted,
             token_indices_experts_sorted,
             num_tokens_per_expert,
         ) = self.reorderer(top_scores, selected_experts_indices)
 
+        # print(f'{torch.distributed.get_rank()=}, {top_scores_experts_sorted=}') # OK
+        # print(f'{torch.distributed.get_rank()=}, {token_indices_experts_sorted=}') # OK
+        # print(f'{torch.distributed.get_rank()=}, {num_tokens_per_expert=}') # OK
+
         routed_input = x[token_indices_experts_sorted // self.router.top_k]
+
+        # print(f'{torch.distributed.get_rank()=}, {routed_input=}') # OK
 
         if self.score_before_experts:
             routed_input = (
@@ -627,6 +637,8 @@ class MoE(nn.Module):
             ).to(x.dtype)
 
         routed_output = self.experts(routed_input, num_tokens_per_expert)
+
+        # print(f'{torch.distributed.get_rank()=}, {routed_output=}') # NOT OK
 
         out = self.shared_experts(x) if self.shared_experts is not None else None
 
@@ -653,6 +665,8 @@ class MoE(nn.Module):
 
         if out is None:
             return out_experts.reshape(bs, slen, dim)
+        # print(f'{torch.distributed.get_rank()=}, {out=}')
+        # print(f'{torch.distributed.get_rank()=}, {out_experts=}')
         return (out + out_experts).reshape(bs, slen, dim)
 
     def init_weights(

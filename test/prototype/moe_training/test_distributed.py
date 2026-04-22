@@ -34,6 +34,7 @@ if is_ROCM():
         "Distributed MoE tests require world_size=4; ROCm CI has 1 device",
         allow_module_level=True,
     )
+import debugpy
 
 from torch import distributed as dist
 from torch import nn
@@ -219,6 +220,13 @@ def test_moe_training_parallel(
     init_std = 0.02
     device = torch.device(distributed_env["device_type"])
 
+    # if torch.distributed.get_rank() == 0:
+    #     print("WAIT FOR DEBUGPY")
+    #     debugpy.listen(3001)
+    #     debugpy.wait_for_client()
+    #     debugpy.breakpoint()
+    # torch.distributed.barrier()
+
     # reference bf16 MoE
     ref_model = MoE(model_args, dim, hidden_dim).to(torch.bfloat16).to(device)
     torch.manual_seed(1)
@@ -233,6 +241,13 @@ def test_moe_training_parallel(
 
     # convert MoE to float8 training
     target_fqns = ["experts"]
+
+    # if torch.distributed.get_rank() == 0:
+    #     print("WAIT FOR DEBUGPY")
+    #     debugpy.listen(3001)
+    #     debugpy.wait_for_client()
+    #     debugpy.breakpoint()
+    # torch.distributed.barrier()
 
     def moe_module_filter_fn(mod: nn.Module, cur_fqn: str) -> bool:
         for target_fqn in target_fqns:
@@ -311,7 +326,8 @@ def test_moe_training_parallel(
             "ref model experts.w3 is not a DTensor"
         )
 
-    # inputs
+    # inputs - minimal shape that is still meaningful:
+    # seq must be divisible by group_alignment_size (32) and by world_size (4) for EP
     batch, seq = 8, 2048
     ref_x = torch.randn(
         batch, seq, dim, dtype=torch.bfloat16, requires_grad=True, device=device
@@ -319,7 +335,9 @@ def test_moe_training_parallel(
     x = ref_x.detach().clone().requires_grad_(True)
 
     # forward pass
+    # print(f"=== REF MODEL - {torch.distributed.get_rank()=} ===")
     ref_out = ref_model(ref_x)
+    # print(f"=== EMULATED MODEL - {torch.distributed.get_rank()=} ===")
     out = model(x)
 
     # validate output
