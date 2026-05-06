@@ -130,7 +130,7 @@ def test_emulate_mxfp8_grouped_gemm_2d_3d(
 
 
 @skip_if_rocm("ROCm not supported")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.skipif(
     torch.cuda.is_available() and not is_sm_version(10, 0),
     reason="3D MXFP8 quantization and MXFP8 grouped GEMM require SM100",
@@ -251,7 +251,7 @@ def test_emulate_mxfp8_grouped_gemm_2d_2d(M, N, num_experts, device):
 
 
 @skip_if_rocm("ROCm not supported")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("M,K,N", [(32768, 5120, 8192), (16640, 7168, 2048)])
 @pytest.mark.parametrize("num_experts", (1, 8))
 @pytest.mark.parametrize("wgrad_with_hp", (True, False))
@@ -273,6 +273,7 @@ def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
     scale_mode,
     device,
 ):
+    # assert device != "xpu", "XPU support not yet available for this test"
     # MXFP8 hardware path requires SM100
     if (
         torch.cuda.is_available()
@@ -285,6 +286,10 @@ def test_mxfp8_grouped_gemm_with_dq_fwd_bwd(
     if kernel_preference == KernelPreference.EMULATED and use_compile:
         pytest.skip(
             "torch native dynamic per group pad/unpad functions do not work with torch.compile yet: https://github.com/pytorch/pytorch/issues/176770"
+        )
+    if is_XPU() and kernel_preference == KernelPreference.AUTO and use_compile:
+        pytest.skip(
+            "torch.compile with AUTO kernel preference hangs on XPU"
         )
 
     x = torch.randn(M, K, dtype=torch.bfloat16, device=device, requires_grad=True)

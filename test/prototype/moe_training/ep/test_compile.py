@@ -239,9 +239,7 @@ class TestIntegrationCompiled(MultiProcessTestCase):
     @parametrize("device_type", _DEVICES)
     def test_full_pipeline_compiled(self, device_type: str):
         if device_type == "xpu":
-            self.skipTest(
-                "Non-emulated MXFP8 compile test requires SM100 CuTeDSL kernels, not yet available on XPU"
-            )
+            assert False, "torch.compile with AUTO kernel preference hangs on XPU"
         self.device = device_type
         self._init_process()
         try:

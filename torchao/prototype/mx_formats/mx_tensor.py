@@ -242,7 +242,7 @@ def to_mx(
     # section 6.3.
 
     # Calculate max_abs normally (torch.amax returns NaN if any input is NaN)
-    max_abs = torch.amax(torch.abs(data_hp), -1).unsqueeze(-1)
+    max_abs = torch.amax(torch.abs(data_hp), -1).unsqueeze(-1) # max wartość dla kazdego bloku
 
     # We cast to float32 here because
     # in the `max_abs_int32 = max_abs.view(hp_int_dtype)` line below,

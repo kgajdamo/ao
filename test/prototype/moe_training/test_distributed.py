@@ -189,23 +189,23 @@ def test_moe_training_parallel(
     )
     device_type = distributed_env["device_type"]
 
-    if device_type == "xpu":
-        if recipe in (
-            MXFP8TrainingRecipe.MXFP8_RCEIL,
-            MXFP8TrainingRecipe.MXFP8_RCEIL_WGRAD_WITH_HP,
-        ):
-            pytest.skip(
-                "Non-emulated MXFP8 recipes require SM100 CuTeDSL kernels, not yet available on XPU"
-            )
-
-        if (
-            not compile
-            and parallel_strategy in (ParallelStrategy.FSDP, ParallelStrategy.FSDP_TP)
-            and recipe == MXFP8TrainingRecipe.MXFP8_EMULATED_RCEIL
-        ):
-            pytest.skip(
-                "Support for XPU is not yet available for FSDP with emulated MXFP8"
-            )
+    # if device_type == "xpu":
+    #     if recipe in (
+    #         MXFP8TrainingRecipe.MXFP8_RCEIL,
+    #         MXFP8TrainingRecipe.MXFP8_RCEIL_WGRAD_WITH_HP,
+    #     ):
+    #         pytest.skip(
+    #             "Non-emulated MXFP8 recipes require SM100 CuTeDSL kernels, not yet available on XPU"
+    #         )
+    #
+    #     if (
+    #         not compile
+    #         and parallel_strategy in (ParallelStrategy.FSDP, ParallelStrategy.FSDP_TP)
+    #         and recipe == MXFP8TrainingRecipe.MXFP8_EMULATED_RCEIL
+    #     ):
+    #         pytest.skip(
+    #             "Support for XPU is not yet available for FSDP with emulated MXFP8"
+    #         )
 
     if recipe == MXFP8TrainingRecipe.MXFP8_EMULATED_RCEIL and compile:
         pytest.skip("MXFP8 emulated mode does not support torch.compile")

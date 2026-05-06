@@ -46,7 +46,7 @@ def device(request):
     return request.param
 
 
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("op_name", ["mm", "matmul", "linear"])
 @pytest.mark.parametrize("batch_size", [None, 2, 4])
 @pytest.mark.parametrize(

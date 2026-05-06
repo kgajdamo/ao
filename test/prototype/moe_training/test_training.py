@@ -123,6 +123,9 @@ def test_moe_training(
             "Skipping compile=True with kernel_preference=EMULATED, not currently supported"
         )
 
+    if _is_xpu and compile:
+        assert False, "torch.compile hangs on XPU for MoE training tests torch.compile hangs on XPU for MoE training tests"
+
     # FP8_ROWWISE hardware path requires SM90
     if recipe == Float8TrainingRecipe.FP8_ROWWISE:
         if compile:
@@ -143,8 +146,8 @@ def test_moe_training(
         MXFP8TrainingRecipe.MXFP8_RCEIL,
         MXFP8TrainingRecipe.MXFP8_RCEIL_WGRAD_WITH_HP,
     ):
-        if device == "xpu":
-            pytest.skip("MXFP8 hardware mode is not yet supported on XPU")
+        # if device == "xpu":
+        #     pytest.skip("MXFP8 hardware mode is not yet supported on XPU")
         if device == "cuda" and torch.cuda.get_device_capability() != (10, 0):
             pytest.skip(
                 f"Skipping MXFP8 hardware mode tests, only supported on compute capability 10.0 and found {torch.cuda.get_device_capability()}"

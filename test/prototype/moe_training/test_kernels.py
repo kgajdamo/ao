@@ -284,7 +284,7 @@ def test_triton_mx_block_rearrange_2d_M_groups(
     reason="MXFP8 requires CUDA SM 10.x",
 )
 @skip_if_rocm("ROCm enablement in progress")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize(
     "m,k,n_groups,chunks_per_tb",
     [
@@ -400,7 +400,7 @@ def test_triton_mx_block_rearrange_2d_K_groups(
     torch.cuda.is_available() and not _is_sm_10x(),
     reason="MXFP8 requires CUDA SM 10.x",
 )
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("E", (1, 2, 4, 8))
 @pytest.mark.parametrize("N", (32, 1536, 5120, 7168, 8192))
 @pytest.mark.parametrize("K", (32, 1536, 5120, 7168, 8192))
@@ -530,7 +530,7 @@ def test_cuda_mx_3d_cutedsl_numerics(
     torch.cuda.is_available() and not _mxfp8_cutedsl_kernels_available,
     reason="MXFP8 cutedsl kernels not available",
 )
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("M", (128, 8192))
 @pytest.mark.parametrize("K", (1536, 5120, 7168, 8192))
 @pytest.mark.parametrize("input_dtype", (torch.bfloat16,))
@@ -583,7 +583,7 @@ def test_cuda_mx_dim0_2d_numerics(M, K, input_dtype, scaling_mode, device):
     torch.cuda.is_available() and not _mxfp8_cutedsl_kernels_available,
     reason="MXFP8 cutedsl kernels not available",
 )
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("M", (128, 1024))
 @pytest.mark.parametrize("K", (128, 256, 1536, 5120, 7168, 8192))
 @pytest.mark.parametrize("input_dtype", (torch.bfloat16,))
@@ -653,7 +653,7 @@ def test_cuda_mx_dim1_2d_numerics_32x1(
     reason="CUDA kernel requires sm_100 and CUDA 12.8+",
 )
 @skip_if_rocm("ROCm enablement in progress")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("num_tokens", [128, 157, 4096, 16392])
 @pytest.mark.parametrize("dim", [7168])
 @pytest.mark.parametrize("num_groups", [1, 2, 4, 8])
@@ -705,7 +705,7 @@ def test_cuda_fused_pad_token_groups(
     reason="CUDA kernel requires sm_100 and CUDA 12.8+",
 )
 @skip_if_rocm("ROCm enablement in progress")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 @pytest.mark.parametrize("num_tokens", [128, 157, 4096])
 @pytest.mark.parametrize("dim", [7168])
 @pytest.mark.parametrize("num_groups", [1, 2, 4, 8])
@@ -846,7 +846,7 @@ def test_triton_fp8_colwise_3d_scale_and_cast(
     reason="MXFP8 cutedsl kernels not available",
 )
 @skip_if_rocm("ROCm enablement in progress")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 def test_cutedsl_1x32_group_validation_error():
     """Test that 1x32 CuTeDSL kernel raises error for non-128-multiple group sizes."""
     import subprocess
@@ -881,7 +881,7 @@ torch.cuda.synchronize()
     reason="MXFP8 cutedsl kernels not available",
 )
 @skip_if_rocm("ROCm enablement in progress")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 def test_cutedsl_32x1_group_validation_error():
     """Test that 32x1 CuTeDSL kernel raises error for non-128-multiple group sizes."""
     import subprocess
@@ -916,7 +916,7 @@ torch.cuda.synchronize()
     reason="MXFP8 cutedsl kernels not available",
 )
 @skip_if_rocm("ROCm enablement in progress")
-@skip_if_xpu("XPU support not yet available")
+# @skip_if_xpu("XPU support not yet available")
 def test_cutedsl_kernels_work_with_valid_128_multiple_groups(device: str):
     """Test that both CuTeDSL kernels work correctly with valid 128-multiple group sizes."""
     M, K = 512, 1024

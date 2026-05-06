@@ -106,8 +106,8 @@ class TestIntegration(MultiProcessTestCase):
 
     @parametrize("device_type", _DEVICES)
     def test_full_pipeline(self, device_type: str):
-        if device_type == "xpu":
-            self.skipTest("Support not yet available on XPU")
+        # if device_type == "xpu":
+        #     self.skipTest("Support not yet available on XPU")
 
         self.device = device_type
         self._init_process()
