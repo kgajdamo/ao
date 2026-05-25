@@ -19,7 +19,12 @@ from torchao.float8.float8_training_tensor import (
     hp_tensor_and_scale_to_float8,
 )
 from torchao.float8.float8_utils import pad_tensor_for_matmul
+from torchao.utils import get_available_devices
 
+_DEVICE = get_available_devices()[-1]
+assert _DEVICE in ["cuda", "xpu"], (
+    "Benchmark currently only supports CUDA & XPU devices"
+)
 # estimating TOPs for matmuls in fp32, fp16, fp8
 # assuming A * B = C, with A being M * K, B being K * N, C being M * N
 
@@ -51,8 +56,8 @@ def get_tops_info(tops, time, peak_tops):
 
 
 def do_fp8_matmul(A, B, fp8_dtype, out_dtype):
-    scale_a = torch.tensor([1], device="cuda", dtype=torch.float32)
-    scale_b = torch.tensor([1], device="cuda", dtype=torch.float32)
+    scale_a = torch.tensor([1], device=_DEVICE, dtype=torch.float32)
+    scale_b = torch.tensor([1], device=_DEVICE, dtype=torch.float32)
 
     a_config = ScaledMMConfig(
         emulate=False, use_fast_accum=True, fp8_output=True, pad_inner_dim=True
@@ -87,8 +92,8 @@ def do_fp8_pad_first_matmul(A, B, fp8_dtype, out_dtype):
     A_pad = pad_tensor_for_matmul(A, dims=1)  # mem copy
     B_pad = pad_tensor_for_matmul(B, dims=0)  # mem copy
 
-    scale_a = torch.tensor([1], device="cuda", dtype=torch.float32)
-    scale_b = torch.tensor([1], device="cuda", dtype=torch.float32)
+    scale_a = torch.tensor([1], device=_DEVICE, dtype=torch.float32)
+    scale_b = torch.tensor([1], device=_DEVICE, dtype=torch.float32)
 
     A_pad = A_pad.to(fp8_dtype)  # mem copy
     B_pad = B_pad.to(fp8_dtype)  # mem copy
@@ -142,7 +147,7 @@ def gen_configs():
 
 @torch.no_grad()
 def run(compile: bool = False, n_limit: Optional[int] = None):
-    device = "cuda"
+    device = _DEVICE
     experiments = gen_configs()
     results = []
     tops_table = []
