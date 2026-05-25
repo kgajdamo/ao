@@ -24,6 +24,12 @@ from torchao.float8.config import (
 )
 from torchao.float8.float8_linear import Float8Linear
 from torchao.float8.float8_training_tensor import ScaledMMConfig
+from torchao.utils import get_available_devices
+
+_DEVICE = get_available_devices()[-1]
+assert _DEVICE in ["cuda", "xpu"], (
+    "Benchmark currently only supports CUDA & XPU devices"
+)
 
 # estimating TOPs for matmuls in fp32, fp16, fp8
 # assuming A * B = C, with A being M * K, B being K * N, C being M * N
@@ -110,7 +116,7 @@ def main(
     scaling_type_grad_output: str = "dynamic",
     scaling_granularity: str = "tensorwise",
 ):
-    device = "cuda"
+    device = _DEVICE
     print(f"Compile is set to             | {compile}")
 
     scaling_type_input = ScalingType(scaling_type_input)
@@ -308,11 +314,11 @@ def invoke_main() -> None:
     if args.shape_gen_name is not None:
         kwargs["shape_gen_name"] = args.shape_gen_name
     if args.M is not None:
-        kwargs["M"] = (args.M,)
+        kwargs["M"] = args.M
     if args.K is not None:
-        kwargs["K"] = (args.K,)
+        kwargs["K"] = args.K
     if args.N is not None:
-        kwargs["N"] = (args.N,)
+        kwargs["N"] = args.N
     if args.scaling_type_input is not None:
         kwargs["scaling_type_input"] = args.scaling_type_input
     if args.scaling_type_weight is not None:
