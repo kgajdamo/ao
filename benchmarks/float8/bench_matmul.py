@@ -19,11 +19,17 @@ from utils import (
 from torchao.prototype.mx_formats.mx_tensor import to_mx
 from torchao.prototype.mx_formats.utils import to_blocked
 from torchao.testing.training.roofline_utils import get_specs
-from torchao.utils import is_MI300, torch_version_at_least
+from torchao.utils import get_available_devices, is_MI300, torch_version_at_least
 
 # ScalingType and SwizzleType are only available in PyTorch 2.10+
 if torch_version_at_least("2.10.0"):
     from torch.nn.functional import ScalingType, SwizzleType
+
+
+_DEVICE = get_available_devices()[-1]
+assert _DEVICE in ["cuda", "xpu"], (
+    "Benchmark currently only supports CUDA & XPU devices"
+)
 
 
 @torch.inference_mode()
@@ -37,7 +43,7 @@ def run(
     use_gpu_kernel_time: bool = True,
     recipe: str = "tensorwise",
 ):
-    device = "cuda"
+    device = _DEVICE
     # TODO(future PR): this is ugly
     assert recipe in (
         "tensorwise",
@@ -52,7 +58,12 @@ def run(
     fp8_peak_tops = specs["fp8_peak_tops"]
     fp4_peak_tops = specs.get("fp4_peak_tops", 0.0)  # only on sm120
     print(f"recipe: {recipe}")
-    print(f"gpu_name: {torch.cuda.get_device_name(0)}")
+
+    if device == "xpu":
+        gpu_name = torch.xpu.get_device_name(0)
+    else:
+        gpu_name = torch.cuda.get_device_name(0)
+    print(f"gpu_name: {gpu_name}")
     print(
         f"peak tops: bf16 {bf16_peak_tops:.2e}, fp8 {fp8_peak_tops:.2e}, fp4 {fp4_peak_tops:.2e}"
     )
