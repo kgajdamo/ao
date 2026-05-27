@@ -13,6 +13,12 @@ from torchao.quantization.quant_api import (
     PerRow,
     quantize_,
 )
+from torchao.utils import get_available_devices
+
+_DEVICE = get_available_devices()[-1]
+assert _DEVICE in ["cuda", "xpu"], (
+    "Benchmark currently only supports CUDA & XPU devices"
+)
 
 
 def benchmark_fn_in_usec(f, *args, **kwargs):
@@ -23,8 +29,8 @@ def benchmark_fn_in_usec(f, *args, **kwargs):
 
 def run(torch_compile_mode: str = "default"):
     M, K, N = 1024, 2048, 4096
-    x = torch.randn(M, K, device="cuda", dtype=torch.bfloat16)
-    m = nn.Sequential(nn.Linear(K, N, device="cuda", dtype=torch.bfloat16))
+    x = torch.randn(M, K, device=_DEVICE, dtype=torch.bfloat16)
+    m = nn.Sequential(nn.Linear(K, N, device=_DEVICE, dtype=torch.bfloat16))
     quantize_(m, Float8DynamicActivationFloat8WeightConfig(granularity=PerRow()))
     m = torch.compile(m, mode=torch_compile_mode)
     # warm up
