@@ -87,6 +87,9 @@ def profiler_output_to_filtered_time_by_kernel_name(
             continue
         elif e.key == "cudaDeviceSynchronize":
             continue
+        elif e.key == "zeEventHostSynchronize":
+            # Level Zero (Intel XPU) host-side synchronization
+            continue
         elif e.key == "Activity Buffer Request":
             continue
         elif e.key == "Unrecognized":
