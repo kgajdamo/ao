@@ -1,0 +1,224 @@
+# Inference microbenchmark configuration for Intel GPU (XPU / Data Center GPU Max 1550).
+#
+# Run from the repo root with the ao-kgajdamo venv:
+#   cd /home/kgajdamo/workspace/repos/ao-kgajdamo
+# source /home/kgajdamo/ao-kgajdamo/bin/activate
+# python -m benchmarks.microbenchmarks.benchmark_runner \
+#     --config benchmarks/microbenchmarks/test/benchmark_config_xpu.yml
+#
+# XPU notes:
+#   * A "baseline" (unquantized) run is always measured for comparison, so it is
+#     not listed as a recipe (listing it only adds a redundant quant==baseline run).
+#   * The recipes below are device-agnostic torchao configs that run on XPU
+#     (int8 via torchao kernels; float8 via torch._scaled_mm, emulated at bf16 rate
+#     on Ponte Vecchio since there is no native FP8 datapath).
+#   * Sparsity (semi-sparse / block) requires CUDA in benchmark_inference.py and is
+#     skipped with a warning on XPU, so sparsity_config_recipe_names is omitted.
+#   * "int4wo" currently falls back to baseline in string_to_config, so it is omitted.
+#   * "int8_dynamic_activation_intx_weight" asserts high_precision_dtype=torch.float32
+#     and is a CPU-oriented low-bit packing path; see the commented fp32 block below.
+#   * The recipe list is GLOBAL: every model_params block is benchmarked against
+#     every recipe (cartesian product). Comment out recipes/blocks to cut runtime.
+benchmark_mode: "inference"
+
+quantization_config_recipe_names:
+  - "int8wo"            # Int8WeightOnlyConfig
+  - "int8dq"            # Int8DynamicActivationInt8WeightConfig
+  - "float8wo"          # Float8WeightOnlyConfig
+  - "float8dq-tensor"   # Float8DynamicActivationFloat8WeightConfig(PerTensor)
+  - "float8dq-row"      # Float8DynamicActivationFloat8WeightConfig(PerRow)
+
+# Sparsity is CUDA-only (skipped on XPU). Uncomment to verify the skip path:
+# sparsity_config_recipe_names:
+#   - "semi"            # pairs with baseline / int8dq / float8dq
+#   - "block"           # pairs with baseline only
+
+output_dir: "benchmarks/microbenchmarks/results"
+
+model_params:
+  # ---------------------------------------------------------------------------
+  # 1) Linear, custom shapes, bf16, max-autotune + full profiling.
+  #    Primary correctness/perf case (standard profiler + memory profiler on).
+  # ---------------------------------------------------------------------------
+  - name: "xpu_linear_bf16_custom"
+    matrix_shapes:
+      - name: "custom"
+        shapes: [
+          [1024, 1024, 1024],   # [m, k, n]
+          [2048, 4096, 1024],
+          [4096, 4096, 1024],
+        ]
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "max-autotune"
+    device: "xpu"
+    model_type: "linear"
+    enable_profiler: true
+    enable_memory_profiler: true
+
+  # ---------------------------------------------------------------------------
+  # 2) Linear, default compile mode (fast) - sanity check vs max-autotune.
+  # ---------------------------------------------------------------------------
+  - name: "xpu_linear_bf16_default_compile"
+    matrix_shapes:
+      - name: "custom"
+        shapes: [
+          [2048, 2048, 2048],
+        ]
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "default"
+    device: "xpu"
+    model_type: "linear"
+    enable_profiler: false
+    enable_memory_profiler: false
+
+  # ---------------------------------------------------------------------------
+  # 3) Shape-generator coverage: pow2 + pow2_extended (small ranges).
+  # ---------------------------------------------------------------------------
+  - name: "xpu_linear_pow2"
+    matrix_shapes:
+      - name: "pow2"
+        min_power: 10   # 1024
+        max_power: 12   # 4096
+      - name: "pow2_extended"
+        min_power: 10   # 1024, 1536, 2048, 3072
+        max_power: 11
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "default"
+    device: "xpu"
+    model_type: "linear"
+    enable_profiler: false
+    enable_memory_profiler: false
+
+  # ---------------------------------------------------------------------------
+  # 4) small_sweep generator (M <= K <= N) - good for heatmap-style plots.
+  #    "sweep" (full M,K,N cartesian) is available too but explodes quickly.
+  # ---------------------------------------------------------------------------
+  - name: "xpu_linear_small_sweep"
+    matrix_shapes:
+      - name: "small_sweep"
+        min_power: 10   # 1024
+        max_power: 12   # 4096
+      # - name: "sweep"
+      #   min_power: 8  # 256
+      #   max_power: 9  # 512
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "default"
+    device: "xpu"
+    model_type: "linear"
+    enable_profiler: false
+    enable_memory_profiler: false
+
+  # ---------------------------------------------------------------------------
+  # 5) Real model weight shapes (LLaMa 2 70B). Large GEMMs -> default compile.
+  #    The other generators below have 128k-token (M) entries that are very
+  #    heavy; uncomment only if you have the time/memory budget.
+  # ---------------------------------------------------------------------------
+  - name: "xpu_linear_llama"
+    matrix_shapes:
+      - name: "llama"
+      # - name: "llama4"
+      # - name: "deepseek_v3_236b"
+      # - name: "deepseek_v3_671b"
+      # - name: "qwen3_32b"
+      # - name: "gemma3_27b"
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "default"
+    device: "xpu"
+    model_type: "linear"
+    enable_profiler: false
+    enable_memory_profiler: false
+
+  # ---------------------------------------------------------------------------
+  # 6) LayerNorm + Linear + activation. One block per activation variant.
+  #    Available: ln_linear_sigmoid | _relu | _leakyrelu | _relu6 | _gelu |
+  #               _silu | _hardswish
+  # ---------------------------------------------------------------------------
+  - name: "xpu_ln_linear_sigmoid"
+    matrix_shapes:
+      - name: "custom"
+        shapes: [
+          [2048, 4096, 1024],
+        ]
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "max-autotune"
+    device: "xpu"
+    model_type: "ln_linear_sigmoid"
+    enable_profiler: true
+    enable_memory_profiler: false
+
+  - name: "xpu_ln_linear_gelu"
+    matrix_shapes:
+      - name: "custom"
+        shapes: [
+          [2048, 4096, 1024],
+        ]
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "default"
+    device: "xpu"
+    model_type: "ln_linear_gelu"
+    enable_profiler: false
+    enable_memory_profiler: false
+
+  - name: "xpu_ln_linear_silu"
+    matrix_shapes:
+      - name: "custom"
+        shapes: [
+          [2048, 4096, 1024],
+        ]
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "default"
+    device: "xpu"
+    model_type: "ln_linear_silu"
+    enable_profiler: false
+    enable_memory_profiler: false
+
+  # ---------------------------------------------------------------------------
+  # 7) Transformer block (k = hidden dim; input is [m, 16, k]).
+  # ---------------------------------------------------------------------------
+  - name: "xpu_transformer_block"
+    matrix_shapes:
+      - name: "custom"
+        shapes: [
+          [2048, 4096, 1024],   # k is the hidden dimension
+        ]
+    high_precision_dtype: "torch.bfloat16"
+    torch_compile_mode: "max-autotune"
+    device: "xpu"
+    model_type: "transformer_block"
+    enable_profiler: true
+    enable_memory_profiler: true
+
+  # ---------------------------------------------------------------------------
+  # 8) Half-precision (fp16) variant to exercise a non-bf16 dtype.
+  # ---------------------------------------------------------------------------
+  - name: "xpu_linear_fp16"
+    matrix_shapes:
+      - name: "custom"
+        shapes: [
+          [2048, 4096, 1024],
+        ]
+    high_precision_dtype: "torch.float16"
+    torch_compile_mode: "default"
+    device: "xpu"
+    model_type: "linear"
+    enable_profiler: false
+    enable_memory_profiler: false
+
+  # ---------------------------------------------------------------------------
+  # 9) (Optional) fp32 low-bit path. Only meaningful together with the
+  #    "int8_dynamic_activation_intx_weight-<bits>-<group>-<asym>" recipe, which
+  #    asserts float32 and uses a CPU-oriented packing format. Enable the recipe
+  #    AND this block together if you want to exercise it.
+  # ---------------------------------------------------------------------------
+  # - name: "xpu_linear_fp32_intx"
+  #   matrix_shapes:
+  #     - name: "custom"
+  #       shapes: [
+  #         [1024, 1024, 1024],
+  #       ]
+  #   high_precision_dtype: "torch.float32"
+  #   torch_compile_mode: "default"
+  #   device: "xpu"
+  #   model_type: "linear"
+  #   enable_profiler: false
+  #   enable_memory_profiler: false
